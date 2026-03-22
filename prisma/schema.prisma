@@ -1,0 +1,675 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum UserLevel {
+  OTONDO
+  KOPA
+  CORPER
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum AdminRole {
+  ADMIN
+  SUPERADMIN
+}
+
+enum PostVisibility {
+  PUBLIC
+  STATE
+  FRIENDS
+  ONLY_ME
+}
+
+enum PostType {
+  REGULAR
+  REEL
+  OPPORTUNITY
+}
+
+enum ReactionType {
+  LIKE
+  LOVE
+  FIRE
+  CLAP
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  VIDEO
+  FILE
+  LOCATION
+}
+
+enum ConversationType {
+  DM
+  GROUP
+}
+
+enum ParticipantRole {
+  MEMBER
+  ADMIN
+}
+
+enum ListingType {
+  FOR_SALE
+  FOR_RENT
+  SERVICE
+  FREE
+}
+
+enum ListingCategory {
+  HOUSING
+  UNIFORM
+  ELECTRONICS
+  FOOD
+  SERVICES
+  OPPORTUNITIES
+  OTHERS
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  INACTIVE
+  REMOVED
+}
+
+enum CallType {
+  VOICE
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ACTIVE
+  ENDED
+  REJECTED
+  MISSED
+  FAILED
+}
+
+enum NotificationType {
+  FOLLOW
+  POST_LIKE
+  POST_COMMENT
+  COMMENT_REPLY
+  MENTION
+  DM_RECEIVED
+  CALL_MISSED
+  STORY_VIEW
+  MARKET_INQUIRY
+  LISTING_APPROVED
+  LISTING_REJECTED
+  LEVEL_UP
+  SYSTEM
+  BROADCAST
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+enum ReportEntityType {
+  POST
+  STORY
+  REEL
+  LISTING
+  USER
+  COMMENT
+}
+
+enum SellerApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum AuditAction {
+  USER_CREATED
+  USER_SUSPENDED
+  USER_REACTIVATED
+  USER_DELETED
+  USER_VERIFIED
+  USER_LEVEL_CHANGED
+  POST_REMOVED
+  LISTING_REMOVED
+  LISTING_APPROVED
+  LISTING_REJECTED
+  SELLER_APPROVED
+  SELLER_REJECTED
+  BROADCAST_SENT
+  SUBSCRIPTION_GRANTED
+  SUBSCRIPTION_REVOKED
+  ADMIN_CREATED
+  ADMIN_DEACTIVATED
+  SETTINGS_UPDATED
+}
+
+// ─── USERS ────────────────────────────────────────────────────────────────────
+
+model User {
+  id               String           @id @default(cuid())
+  stateCode        String           @unique
+  firstName        String
+  lastName         String
+  email            String           @unique
+  phone            String?
+  passwordHash     String
+  servingState     String
+  lga              String?
+  ppa              String?
+  batch            String
+  profilePicture   String?
+  bio              String?          @db.VarChar(160)
+  corperTag        Boolean          @default(false)
+  corperTagLabel   String?
+  level            UserLevel        @default(OTONDO)
+  isVerified       Boolean          @default(false)
+  subscriptionTier SubscriptionTier @default(FREE)
+  isOnboarded      Boolean          @default(false)
+  isActive         Boolean          @default(true)
+  isFirstLogin     Boolean          @default(true)
+  twoFactorEnabled Boolean          @default(false)
+  twoFactorSecret  String?
+  lastSeen         DateTime?
+  fcmTokens        String[]         @default([])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  sessions              Session[]
+  posts                 Post[]
+  postReactions         PostReaction[]
+  comments              Comment[]
+  storyViews            StoryView[]
+  bookmarks             Bookmark[]
+  sentMessages          Message[]
+  notifications         Notification[]         @relation("recipient")
+  actorNotifications    Notification[]         @relation("actor")
+  marketplaceListings   MarketplaceListing[]
+  opportunities         Opportunity[]
+  savedOpportunities    SavedOpportunity[]
+  subscriptions         Subscription[]
+  reports               Report[]               @relation("reporter")
+  blockedUsers          Block[]                @relation("blocker")
+  blockedBy             Block[]                @relation("blocked")
+  following             Follow[]               @relation("follower")
+  followers             Follow[]               @relation("following")
+  conversationParticipants ConversationParticipant[]
+  callsAsInitiator      CallLog[]              @relation("caller")
+  callsAsReceiver       CallLog[]              @relation("receiver")
+  sellerApplication     SellerApplication?
+  highlights            StoryHighlight[]
+  stories               Story[]
+
+  @@index([servingState])
+  @@index([email])
+  @@index([stateCode])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  deviceInfo   String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+}
+
+// ─── ADMIN USERS ──────────────────────────────────────────────────────────────
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         AdminRole @default(ADMIN)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+// ─── POSTS & FEED ─────────────────────────────────────────────────────────────
+
+model Post {
+  id         String         @id @default(cuid())
+  authorId   String
+  content    String?        @db.Text
+  mediaUrls  String[]       @default([])
+  visibility PostVisibility @default(PUBLIC)
+  postType   PostType       @default(REGULAR)
+  repostOfId String?
+  isEdited   Boolean        @default(false)
+  editedAt   DateTime?
+  isFlagged  Boolean        @default(false)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  repostOf  Post?          @relation("Reposts", fields: [repostOfId], references: [id])
+  reposts   Post[]         @relation("Reposts")
+  reactions PostReaction[]
+  comments  Comment[]
+  bookmarks Bookmark[]
+  reports   Report[]
+
+  @@index([authorId])
+  @@index([createdAt(sort: Desc)])
+  @@index([visibility])
+}
+
+model PostReaction {
+  id           String       @id @default(cuid())
+  postId       String
+  userId       String
+  reactionType ReactionType @default(LIKE)
+  createdAt    DateTime     @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  parentId  String?
+  authorId  String
+  content   String   @db.Text
+  isEdited  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([parentId])
+}
+
+model Bookmark {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+}
+
+// ─── STORIES ──────────────────────────────────────────────────────────────────
+
+model Story {
+  id        String   @id @default(cuid())
+  authorId  String
+  mediaUrl  String
+  mediaType String   @default("image")
+  caption   String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  views      StoryView[]
+  highlights StoryHighlight[]
+
+  @@index([authorId])
+  @@index([expiresAt])
+}
+
+// Add Story relation to User
+// (already done via authorId above)
+
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  viewer User  @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, viewerId])
+}
+
+model StoryHighlight {
+  id        String   @id @default(cuid())
+  userId    String
+  storyId   String
+  title     String?
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+}
+
+// ─── MESSAGING ────────────────────────────────────────────────────────────────
+
+model Conversation {
+  id          String           @id @default(cuid())
+  type        ConversationType @default(DM)
+  name        String?
+  picture     String?
+  description String?
+  inviteToken String?          @unique
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  conversationId String
+  userId         String
+  role           ParticipantRole @default(MEMBER)
+  joinedAt       DateTime        @default(now())
+  isArchived     Boolean         @default(false)
+  isPinned       Boolean         @default(false)
+  isMuted        Boolean         @default(false)
+  mutedUntil     DateTime?
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String?     @db.Text
+  type           MessageType @default(TEXT)
+  mediaUrl       String?
+  replyToId      String?
+  isEdited       Boolean     @default(false)
+  isDeleted      Boolean     @default(false)
+  deletedFor     String[]    @default([])
+  deliveredAt    DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?      @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]     @relation("MessageReplies")
+  reads        MessageRead[]
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model MessageRead {
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+}
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  actorId     String?
+  type        NotificationType
+  entityType  String?
+  entityId    String?
+  content     String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  recipient User  @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     User? @relation("actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId])
+  @@index([isRead])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ─── MARKETPLACE (MAMI MARKET) ────────────────────────────────────────────────
+
+model MarketplaceListing {
+  id             String          @id @default(cuid())
+  sellerId       String
+  title          String
+  description    String          @db.Text
+  category       ListingCategory @default(OTHERS)
+  price          Float?
+  listingType    ListingType     @default(FOR_SALE)
+  images         String[]        @default([])
+  location       String?
+  servingState   String
+  status         ListingStatus   @default(ACTIVE)
+  isBoost        Boolean         @default(false)
+  boostExpiresAt DateTime?
+  isFlagged      Boolean         @default(false)
+  viewCount      Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  seller       User                @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  inquiries    ListingInquiry[]
+  reports      Report[]
+
+  @@index([sellerId])
+  @@index([servingState])
+  @@index([category])
+  @@index([status])
+}
+
+model ListingInquiry {
+  id             String   @id @default(cuid())
+  listingId      String
+  buyerId        String
+  conversationId String?
+  createdAt      DateTime @default(now())
+
+  listing MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, buyerId])
+}
+
+model SellerApplication {
+  id          String                  @id @default(cuid())
+  userId      String                  @unique
+  idDocUrl    String
+  status      SellerApplicationStatus @default(PENDING)
+  reviewNote  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── OPPORTUNITIES ────────────────────────────────────────────────────────────
+
+model Opportunity {
+  id           String    @id @default(cuid())
+  authorId     String
+  title        String
+  organization String?
+  description  String    @db.Text
+  deadline     DateTime?
+  link         String?
+  location     String?
+  isFeatured   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  author User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  saved  SavedOpportunity[]
+
+  @@index([authorId])
+  @@index([isFeatured])
+}
+
+model SavedOpportunity {
+  userId        String
+  opportunityId String
+  savedAt       DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@id([userId, opportunityId])
+}
+
+// ─── CALLS ────────────────────────────────────────────────────────────────────
+
+model CallLog {
+  id               String     @id @default(cuid())
+  callerId         String
+  receiverId       String
+  type             CallType   @default(VOICE)
+  status           CallStatus @default(RINGING)
+  agoraChannelName String?
+  startedAt        DateTime?
+  endedAt          DateTime?
+  duration         Int?       // seconds
+  createdAt        DateTime   @default(now())
+
+  caller   User @relation("caller", fields: [callerId], references: [id], onDelete: Cascade)
+  receiver User @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([callerId])
+  @@index([receiverId])
+}
+
+// ─── SUBSCRIPTIONS ────────────────────────────────────────────────────────────
+
+model Subscription {
+  id           String             @id @default(cuid())
+  userId       String
+  tier         SubscriptionTier   @default(PREMIUM)
+  plan         String             // "MONTHLY" | "ANNUAL"
+  amountKobo   Int
+  startDate    DateTime
+  endDate      DateTime
+  paystackRef  String?
+  status       SubscriptionStatus @default(ACTIVE)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ─── REPORTS ──────────────────────────────────────────────────────────────────
+
+model Report {
+  id             String           @id @default(cuid())
+  reporterId     String
+  entityType     ReportEntityType
+  entityId       String
+  reason         String
+  details        String?
+  status         ReportStatus     @default(PENDING)
+  reviewedBy     String?
+  reviewNote     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime         @default(now())
+
+  reporter User                @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  post     Post?               @relation(fields: [entityId], references: [id], onDelete: Cascade, map: "report_post_fk")
+  listing  MarketplaceListing? @relation(fields: [entityId], references: [id], onDelete: Cascade, map: "report_listing_fk")
+
+  @@index([status])
+  @@index([entityType, entityId])
+}
+
+// ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  adminId    String
+  action     AuditAction
+  entityType String?
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime    @default(now())
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ─── SYSTEM SETTINGS ──────────────────────────────────────────────────────────
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,76 @@
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import morgan from 'morgan';
+import compression from 'compression';
+import { env } from './config/env';
+import { globalRateLimiter } from './shared/middleware/rateLimiter';
+import { errorHandler, notFoundHandler } from './shared/middleware/errorHandler';
+
+// Route imports
+import authRoutes from './modules/auth/auth.routes';
+
+const app = express();
+
+// ── Security ──────────────────────────────────────────────────────────────────
+app.use(helmet());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+      if (env.ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }),
+);
+
+// ── Parsing & Compression ─────────────────────────────────────────────────────
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(compression());
+
+// ── Logging ───────────────────────────────────────────────────────────────────
+if (env.NODE_ENV !== 'test') {
+  app.use(morgan(env.NODE_ENV === 'development' ? 'dev' : 'combined'));
+}
+
+// ── Global Rate Limit ─────────────────────────────────────────────────────────
+app.use('/api', globalRateLimiter);
+
+// ── Health Check ──────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'Corpers Connect API',
+    version: '1.0.0',
+    environment: env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ── API Routes ────────────────────────────────────────────────────────────────
+app.use('/api/v1/auth', authRoutes);
+
+// More routes added here as phases progress:
+// app.use('/api/v1/users', userRoutes);
+// app.use('/api/v1/feed', feedRoutes);
+// app.use('/api/v1/stories', storyRoutes);
+// app.use('/api/v1/reels', reelRoutes);
+// app.use('/api/v1/conversations', messagingRoutes);
+// app.use('/api/v1/notifications', notificationRoutes);
+// app.use('/api/v1/marketplace', marketplaceRoutes);
+// app.use('/api/v1/opportunities', opportunityRoutes);
+// app.use('/api/v1/calls', callRoutes);
+// app.use('/api/v1/discover', discoveryRoutes);
+// app.use('/api/v1/subscriptions', subscriptionRoutes);
+// app.use('/api/v1/admin', adminRoutes);
+
+// ── 404 & Error Handlers ──────────────────────────────────────────────────────
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+export default app;
