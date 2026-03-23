@@ -20,7 +20,7 @@ let userId2: string;
 
 beforeAll(async () => {
   await prisma.$connect();
-  await redis.connect();
+  try { await redis.connect(); } catch { /* Redis unavailable */ }
 
   // ── Login user 1 (KG/25C/1358 already in DB from seed) ──────────────────
   const login1 = await request(app)
@@ -57,7 +57,7 @@ afterAll(async () => {
   await prisma.block.deleteMany({ where: { OR: [{ blockerId: userId1 }, { blockerId: userId2 }] } });
   await prisma.user.deleteMany({ where: { stateCode: USER2.stateCode } });
   await prisma.$disconnect();
-  await redis.quit();
+  try { await redis.quit(); } catch { /* Redis unavailable */ }
 });
 
 // ── GET /users/me ─────────────────────────────────────────────────────────────

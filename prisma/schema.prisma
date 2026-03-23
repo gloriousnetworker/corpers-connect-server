@@ -210,6 +210,7 @@ model User {
   notifications         Notification[]         @relation("recipient")
   actorNotifications    Notification[]         @relation("actor")
   marketplaceListings   MarketplaceListing[]
+  listingInquiries      ListingInquiry[]       @relation("ListingInquiryBuyer")
   opportunities         Opportunity[]
   savedOpportunities    SavedOpportunity[]
   subscriptions         Subscription[]
@@ -531,6 +532,7 @@ model ListingInquiry {
   createdAt      DateTime @default(now())
 
   listing MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer   User               @relation("ListingInquiryBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
   @@unique([listingId, buyerId])
 }

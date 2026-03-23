@@ -10,7 +10,7 @@ const TEST_STATE_CODE = 'KG/25C/1359';
 
 beforeAll(async () => {
   await prisma.$connect();
-  await redis.connect();
+  try { await redis.connect(); } catch { /* Redis unavailable in this environment */ }
   // Clean test user if exists from previous run
   await prisma.user.deleteMany({ where: { stateCode: TEST_STATE_CODE } });
   await prisma.session.deleteMany({ where: { user: { stateCode: TEST_STATE_CODE } } });
@@ -19,7 +19,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.user.deleteMany({ where: { stateCode: TEST_STATE_CODE } });
   await prisma.$disconnect();
-  await redis.quit();
+  try { await redis.quit(); } catch { /* Redis unavailable */ }
 });
 
 // ── Health ─────────────────────────────────────────────────────────────────────

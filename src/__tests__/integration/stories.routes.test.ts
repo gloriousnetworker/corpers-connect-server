@@ -7,15 +7,18 @@ import { env } from '../../config/env';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+let _userCounter = Date.now();
+
 async function createUser(overrides: Record<string, unknown> = {}) {
+  const id = ++_userCounter;
   const hash = await bcrypt.hash('Test@1234', 10);
   return prisma.user.create({
     data: {
-      email: `story-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+      email: `story-${id}-${Math.random().toString(36).slice(2)}@example.com`,
       passwordHash: hash,
       firstName: 'Story',
       lastName: 'Tester',
-      stateCode: `LA/24A/${Math.floor(Math.random() * 9000 + 1000)}`,
+      stateCode: `LA/24S/${id}`,
       servingState: 'Lagos',
       batch: 'Batch A',
       isActive: true,

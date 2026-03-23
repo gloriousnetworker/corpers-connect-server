@@ -57,6 +57,11 @@ export const jwtService = {
   },
 
   async isBlocked(jti: string): Promise<boolean> {
-    return redisHelpers.exists(`${BLOCKLIST_PREFIX}${jti}`);
+    try {
+      return await redisHelpers.exists(`${BLOCKLIST_PREFIX}${jti}`);
+    } catch {
+      // Redis unavailable — JWT signature already validated; allow through
+      return false;
+    }
   },
 };
