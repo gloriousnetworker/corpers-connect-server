@@ -60,12 +60,23 @@ export const authService = {
     // Generate and send OTP
     const otp = otpService.generate();
     await otpService.store(`reg:${corper.email}`, otp);
-    await emailService.sendOTP(corper.email, corper.firstName, otp, 'registration');
+
+    let emailDelivered = true;
+    try {
+      await emailService.sendOTP(corper.email, corper.firstName, otp, 'registration');
+    } catch (emailErr) {
+      emailDelivered = false;
+      console.error('[EMAIL] Failed to send OTP — continuing without email:', emailErr);
+    }
 
     return {
       email: corper.email,
       maskedEmail: maskEmail(corper.email),
-      message: `Verification code sent to ${maskEmail(corper.email)}`,
+      message: emailDelivered
+        ? `Verification code sent to ${maskEmail(corper.email)}`
+        : `Email delivery failed — use EXPOSE_DEV_OTP flag or check SMTP config`,
+      // Only expose OTP when explicitly enabled (e.g. Railway SMTP is blocked)
+      ...(env.EXPOSE_DEV_OTP && { devOtp: otp }),
     };
   },
 
@@ -230,9 +241,17 @@ export const authService = {
 
     const otp = otpService.generate();
     await otpService.store(`reset:${email}`, otp);
-    await emailService.sendOTP(email, user.firstName, otp, 'forgot-password');
 
-    return { message: `Reset code sent to ${maskEmail(email)}` };
+    try {
+      await emailService.sendOTP(email, user.firstName, otp, 'forgot-password');
+    } catch (emailErr) {
+      console.error('[EMAIL] Failed to send reset OTP:', emailErr);
+    }
+
+    return {
+      message: `Reset code sent to ${maskEmail(email)}`,
+      ...(env.EXPOSE_DEV_OTP && { devOtp: otp }),
+    };
   },
 
   // ── Reset Password ───────────────────────────────────────────────────────────

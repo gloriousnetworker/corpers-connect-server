@@ -61,6 +61,12 @@ const envSchema = z.object({
     .string()
     .default('http://localhost:3000,http://localhost:3001')
     .transform((val) => val.split(',')),
+
+  // Dev/testing: return OTP in API response (set true when SMTP is unavailable)
+  EXPOSE_DEV_OTP: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
 });
 
 const parsed = envSchema.safeParse(process.env);
