@@ -5,10 +5,12 @@ dotenv.config();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // Railway injects PORT automatically — do not set it manually in Railway vars
   PORT: z.string().default('5000').transform(Number),
-  APP_URL: z.string().url(),
-  CLIENT_URL: z.string().url(),
-  ADMIN_URL: z.string().url(),
+  // Accept URLs with or without trailing slash; Railway domain doesn't need https:// prefix validation
+  APP_URL: z.string().min(1, 'APP_URL is required'),
+  CLIENT_URL: z.string().min(1, 'CLIENT_URL is required'),
+  ADMIN_URL: z.string().min(1, 'ADMIN_URL is required'),
 
   // Database
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
