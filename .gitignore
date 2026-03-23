@@ -23,6 +23,8 @@ serviceAccount*.json
 BACKEND_PLAN.md
 BACKEND_USER_STORY.md
 RAILWAY_ENV.md
+IMPLEMENTATION_PROGRESS.md
+API_DOCS.md
 
 # Logs
 logs/
