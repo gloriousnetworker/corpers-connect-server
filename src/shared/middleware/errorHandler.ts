@@ -38,21 +38,29 @@ export const errorHandler = (
     return;
   }
 
-  // Prisma unique constraint violation
-  if ((err as { code?: string }).code === 'P2002') {
-    res.status(409).json({
-      success: false,
-      message: 'A record with this value already exists',
-    });
+  // Prisma errors
+  const prismaCode = (err as { code?: string }).code;
+  if (prismaCode === 'P2002') {
+    res.status(409).json({ success: false, message: 'A record with this value already exists' });
+    return;
+  }
+  if (prismaCode === 'P2025') {
+    res.status(404).json({ success: false, message: 'Record not found' });
+    return;
+  }
+  // Table does not exist — schema not pushed yet
+  if (prismaCode === 'P2021' || prismaCode === 'P1001' || prismaCode === 'P1003') {
+    console.error(`[DB ERROR ${prismaCode}]`, err.message);
+    res.status(503).json({ success: false, message: 'Database not ready. Please try again.' });
     return;
   }
 
-  // Unknown errors — don't leak details in production
-  console.error('Unhandled error:', err);
+  // Unknown errors — always log full error, only expose stack in dev
+  console.error(`[500] ${err.name}: ${err.message}`, err.stack);
   res.status(500).json({
     success: false,
     message: 'An unexpected error occurred',
-    ...(env.NODE_ENV === 'development' && { stack: err.stack }),
+    ...(env.NODE_ENV === 'development' && { error: err.message, stack: err.stack }),
   });
 };
 
