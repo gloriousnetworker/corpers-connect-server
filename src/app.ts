@@ -19,6 +19,7 @@ import messagingRoutes from './modules/messaging/messaging.routes';
 import notificationRoutes from './modules/notifications/notifications.routes';
 import marketplaceRoutes from './modules/marketplace/marketplace.routes';
 import callRoutes from './modules/calls/calls.routes';
+import opportunityRoutes from './modules/opportunities/opportunities.routes';
 
 const app = express();
 
@@ -79,7 +80,7 @@ app.use('/api/v1/conversations', messagingRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/marketplace', marketplaceRoutes);
 app.use('/api/v1/calls', callRoutes);
-// app.use('/api/v1/opportunities', opportunityRoutes);
+app.use('/api/v1/opportunities', opportunityRoutes);
 // app.use('/api/v1/subscriptions', subscriptionRoutes);
 // app.use('/api/v1/admin', adminRoutes);
 

@@ -141,6 +141,22 @@ enum SellerApplicationStatus {
   REJECTED
 }
 
+enum ApplicationStatus {
+  PENDING
+  REVIEWED
+  SHORTLISTED
+  ACCEPTED
+  REJECTED
+}
+
+enum OpportunityType {
+  JOB
+  INTERNSHIP
+  VOLUNTEER
+  CONTRACT
+  OTHER
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -211,8 +227,9 @@ model User {
   actorNotifications    Notification[]         @relation("actor")
   marketplaceListings   MarketplaceListing[]
   listingInquiries      ListingInquiry[]       @relation("ListingInquiryBuyer")
-  opportunities         Opportunity[]
-  savedOpportunities    SavedOpportunity[]
+  opportunities              Opportunity[]
+  savedOpportunities         SavedOpportunity[]
+  opportunityApplications    OpportunityApplication[]   @relation("OpportunityApplicant")
   subscriptions         Subscription[]
   reports               Report[]               @relation("reporter")
   blockedUsers          Block[]                @relation("blocker")
@@ -553,23 +570,48 @@ model SellerApplication {
 // ─── OPPORTUNITIES ────────────────────────────────────────────────────────────
 
 model Opportunity {
-  id           String    @id @default(cuid())
+  id           String          @id @default(cuid())
   authorId     String
   title        String
-  organization String?
-  description  String    @db.Text
+  description  String          @db.Text
+  type         OpportunityType @default(OTHER)
+  companyName  String
+  location     String
+  isRemote     Boolean         @default(false)
+  salary       String?
   deadline     DateTime?
-  link         String?
-  location     String?
-  isFeatured   Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  requirements String?         @db.Text
+  contactEmail String?
+  companyWebsite String?
+  isFeatured   Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
-  author User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  saved  SavedOpportunity[]
+  author       User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  saved        SavedOpportunity[]
+  applications OpportunityApplication[]
 
   @@index([authorId])
   @@index([isFeatured])
+  @@index([type])
+}
+
+model OpportunityApplication {
+  id            String            @id @default(cuid())
+  opportunityId String
+  applicantId   String
+  coverLetter   String?           @db.Text
+  cvUrl         String?
+  status        ApplicationStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicant   User        @relation("OpportunityApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@unique([opportunityId, applicantId])
+  @@index([applicantId])
+  @@index([opportunityId])
 }
 
 model SavedOpportunity {

@@ -62,6 +62,35 @@ export const idDocUpload = multer({
   fileFilter: imageFilter,
 }).single('idDoc');
 
+// For CV/resume uploads — PDF, DOC, DOCX, max 5 MB
+export const cvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    const allowed = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new AppError('Only PDF, DOC, and DOCX files are allowed', 400));
+    }
+    cb(null, true);
+  },
+}).single('cv');
+
+export const uploadDocumentToCloudinary = (buffer: Buffer, folder: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: 'raw' },
+      (error, result) => {
+        if (error || !result) return reject(error ?? new Error('Cloudinary upload failed'));
+        resolve(result.secure_url);
+      },
+    );
+    stream.end(buffer);
+  });
+
 // For stories/reels — auto-detect image vs video
 export const uploadMediaToCloudinary = (
   buffer: Buffer,
