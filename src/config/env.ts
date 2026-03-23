@@ -24,9 +24,11 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES: z.string().default('15m'),
   JWT_REFRESH_EXPIRES: z.string().default('7d'),
 
-  // Email
-  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
-  EMAIL_FROM: z.string().default('Corpers Connect <noreply@corpers-connect.ng>'),
+  // Email — Gmail SMTP (temporary until custom domain is verified)
+  GMAIL_USER: z.string().email('GMAIL_USER must be a valid Gmail address'),
+  GMAIL_APP_PASSWORD: z.string().min(1, 'GMAIL_APP_PASSWORD is required'),
+  // Resend kept in env for future use when custom domain is verified
+  RESEND_API_KEY: z.string().optional(),
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: z.string().min(1, 'CLOUDINARY_CLOUD_NAME is required'),

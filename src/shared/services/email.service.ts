@@ -1,7 +1,15 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { env } from '../../config/env';
 
-const resend = new Resend(env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // STARTTLS
+  auth: {
+    user: env.GMAIL_USER,
+    pass: env.GMAIL_APP_PASSWORD,
+  },
+});
 
 export const emailService = {
   async sendOTP(to: string, name: string, otp: string, purpose: string): Promise<void> {
@@ -11,8 +19,8 @@ export const emailService = {
       '2fa': 'Your Corpers Connect login code',
     };
 
-    const result = await resend.emails.send({
-      from: env.EMAIL_FROM,
+    const info = await transporter.sendMail({
+      from: `"Corpers Connect" <${env.GMAIL_USER}>`,
       to,
       subject: subjects[purpose] ?? 'Your Corpers Connect OTP',
       html: `
@@ -39,19 +47,14 @@ export const emailService = {
       `,
     });
 
-    if (result.error) {
-      console.error(`[EMAIL ERROR] Failed to send ${purpose} OTP to ${to}:`, result.error);
-      throw new Error(`Email delivery failed: ${result.error.message}`);
-    }
-
-    console.info(`[EMAIL] ${purpose} OTP sent successfully to ${to} | id: ${result.data?.id}`);
+    console.info(`[EMAIL] ${purpose} OTP sent to ${to} | messageId: ${info.messageId}`);
   },
 
   async sendWelcome(to: string, name: string, defaultPassword: string): Promise<void> {
-    await resend.emails.send({
-      from: env.EMAIL_FROM,
+    await transporter.sendMail({
+      from: `"Corpers Connect" <${env.GMAIL_USER}>`,
       to,
-      subject: 'Welcome to Corpers Connect! 🎉',
+      subject: 'Welcome to Corpers Connect!',
       html: `
         <!DOCTYPE html>
         <html>
