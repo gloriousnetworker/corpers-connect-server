@@ -1,16 +1,19 @@
 import nodemailer from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { env } from '../../config/env';
 
-const transporter = nodemailer.createTransport({
+// IPv4 is forced at DNS level via dns.setDefaultResultOrder('ipv4first') in server.ts
+const smtpOptions: SMTPTransport.Options = {
   host: 'smtp.gmail.com',
   port: 587,
   secure: false, // STARTTLS
-  family: 4, // Force IPv4 — Railway containers default to IPv6 which Gmail SMTP blocks
   auth: {
     user: env.GMAIL_USER,
     pass: env.GMAIL_APP_PASSWORD,
   },
-});
+};
+
+const transporter = nodemailer.createTransport(smtpOptions);
 
 export const emailService = {
   async sendOTP(to: string, name: string, otp: string, purpose: string): Promise<void> {
