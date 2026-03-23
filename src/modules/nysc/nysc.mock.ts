@@ -14,7 +14,7 @@ export const MOCK_CORPERS: CorperRecord[] = [
     stateCode: 'KG/25C/1358',
     firstName: 'Iniubong',
     lastName: 'Udofot',
-    email: 'udofotsx@yahoo.com',
+    email: 'iniubongudofot2000@gmail.com',
     phone: '08024983733',
     servingState: 'Kogi State',
     ppa: 'Mega Tech Solutions Lokoja',
