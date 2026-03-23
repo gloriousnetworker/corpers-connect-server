@@ -22,6 +22,7 @@ serviceAccount*.json
 # Planning & documentation (internal only)
 BACKEND_PLAN.md
 BACKEND_USER_STORY.md
+RAILWAY_ENV.md
 
 # Logs
 logs/
