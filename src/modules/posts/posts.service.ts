@@ -6,6 +6,7 @@ import {
 } from '../../shared/utils/errors';
 import type { CreatePostDto, UpdatePostDto } from './posts.validation';
 import { PostVisibility, ReactionType, ReportEntityType } from '@prisma/client';
+import { notificationsService } from '../notifications/notifications.service';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const DEFAULT_LIMIT = 20;
@@ -245,6 +246,14 @@ export const postsService = {
       create: { postId, userId, reactionType: type },
       update: { reactionType: type },
     });
+
+    void notificationsService.create({
+      recipientId: post.authorId,
+      actorId: userId,
+      type: 'POST_LIKE',
+      entityType: 'Post',
+      entityId: postId,
+    });
   },
 
   async unreact(userId: string, postId: string) {
@@ -288,13 +297,38 @@ export const postsService = {
       if (parent.parentId) throw new BadRequestError('Cannot reply to a reply (max 2 levels)');
     }
 
-    return prisma.comment.create({
+    const comment = await prisma.comment.create({
       data: { postId, authorId: userId, content, parentId },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
         _count: { select: { replies: true } },
       },
     });
+
+    if (parentId) {
+      // Notify parent comment author of a reply
+      const parent = await prisma.comment.findUnique({ where: { id: parentId }, select: { authorId: true } });
+      if (parent) {
+        void notificationsService.create({
+          recipientId: parent.authorId,
+          actorId: userId,
+          type: 'COMMENT_REPLY',
+          entityType: 'Comment',
+          entityId: comment.id,
+        });
+      }
+    } else {
+      // Notify post author of a new comment
+      void notificationsService.create({
+        recipientId: post.authorId,
+        actorId: userId,
+        type: 'POST_COMMENT',
+        entityType: 'Post',
+        entityId: postId,
+      });
+    }
+
+    return comment;
   },
 
   async deleteComment(userId: string, postId: string, commentId: string) {

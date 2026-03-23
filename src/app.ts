@@ -16,6 +16,7 @@ import feedRoutes from './modules/feed/feed.routes';
 import storyRoutes from './modules/stories/stories.routes';
 import reelRoutes from './modules/reels/reels.routes';
 import messagingRoutes from './modules/messaging/messaging.routes';
+import notificationRoutes from './modules/notifications/notifications.routes';
 
 const app = express();
 
@@ -73,7 +74,7 @@ app.use('/api/v1/feed', feedRoutes);
 app.use('/api/v1/stories', storyRoutes);
 app.use('/api/v1/reels', reelRoutes);
 app.use('/api/v1/conversations', messagingRoutes);
-// app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 // app.use('/api/v1/marketplace', marketplaceRoutes);
 // app.use('/api/v1/opportunities', opportunityRoutes);
 // app.use('/api/v1/calls', callRoutes);

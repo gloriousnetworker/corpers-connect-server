@@ -176,4 +176,32 @@ export const usersController = {
       next(err);
     }
   },
+
+  // ── FCM Tokens ───────────────────────────────────────────────────────────────
+
+  async addFcmToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token } = req.body;
+      if (!token || typeof token !== 'string') {
+        return res.status(422).json({ status: 'error', message: 'token is required' });
+      }
+      await usersService.addFcmToken(req.user!.id, token);
+      sendSuccess(res, null, 'FCM token registered');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async removeFcmToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token } = req.body;
+      if (!token || typeof token !== 'string') {
+        return res.status(422).json({ status: 'error', message: 'token is required' });
+      }
+      await usersService.removeFcmToken(req.user!.id, token);
+      sendSuccess(res, null, 'FCM token removed');
+    } catch (err) {
+      next(err);
+    }
+  },
 };

@@ -5,6 +5,7 @@ import {
   ForbiddenError,
 } from '../../shared/utils/errors';
 import type { UpdateMeDto, OnboardDto } from './users.validation';
+import { notificationsService } from '../notifications/notifications.service';
 
 const DEFAULT_LIMIT = 20;
 
@@ -147,6 +148,14 @@ export const usersService = {
       create: { followerId, followingId },
       update: {},
     });
+
+    void notificationsService.create({
+      recipientId: followingId,
+      actorId: followerId,
+      type: 'FOLLOW',
+      entityType: 'User',
+      entityId: followerId,
+    });
   },
 
   async unfollow(followerId: string, followingId: string) {
@@ -269,5 +278,26 @@ export const usersService = {
       },
     });
     return blocks.map((b) => b.blocked);
+  },
+
+  // ── FCM Tokens ───────────────────────────────────────────────────────────────
+
+  async addFcmToken(userId: string, token: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { fcmTokens: true } });
+    if (!user) throw new NotFoundError('User not found');
+    if (user.fcmTokens.includes(token)) return; // idempotent
+    await prisma.user.update({
+      where: { id: userId },
+      data: { fcmTokens: { push: token } },
+    });
+  },
+
+  async removeFcmToken(userId: string, token: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { fcmTokens: true } });
+    if (!user) throw new NotFoundError('User not found');
+    await prisma.user.update({
+      where: { id: userId },
+      data: { fcmTokens: user.fcmTokens.filter((t) => t !== token) },
+    });
   },
 };

@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { NotFoundError, ForbiddenError } from '../../shared/utils/errors';
 import { addDays } from 'date-fns';
+import { notificationsService } from '../notifications/notifications.service';
 
 const AUTHOR_SELECT = {
   id: true,
@@ -94,6 +95,17 @@ export const storiesService = {
       create: { storyId, viewerId },
       update: {},
     });
+
+    // Notify story author (only on first view — idempotent handled by notification create)
+    if (story.authorId !== viewerId) {
+      void notificationsService.create({
+        recipientId: story.authorId,
+        actorId: viewerId,
+        type: 'STORY_VIEW',
+        entityType: 'Story',
+        entityId: storyId,
+      });
+    }
 
     return story;
   },

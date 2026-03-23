@@ -133,6 +133,7 @@ describe('messagingService.sendMessage', () => {
     (mockPrisma.message.create as jest.Mock).mockResolvedValue(mockMessage);
     (mockPrisma.conversation.update as jest.Mock).mockResolvedValue({});
     (mockPrisma.conversationParticipant.update as jest.Mock).mockResolvedValue({});
+    (mockPrisma.conversationParticipant.findMany as jest.Mock).mockResolvedValue([]);
 
     const result = await messagingService.sendMessage(USER_A, CONV_ID, {
       content: 'Hello!',

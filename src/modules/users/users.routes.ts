@@ -99,4 +99,18 @@ router.get('/me/bookmarks', authenticate, usersController.getBookmarks);
  */
 router.get('/:userId/highlights', usersController.getUserHighlights);
 
+// ── FCM Tokens ────────────────────────────────────────────────────────────────
+
+/** POST /api/v1/users/me/fcm-token
+ *  Register a device FCM token for push notifications.
+ *  Body: { token: string }
+ */
+router.post('/me/fcm-token', authenticate, usersController.addFcmToken);
+
+/** DELETE /api/v1/users/me/fcm-token
+ *  Remove a device FCM token (e.g., on logout).
+ *  Body: { token: string }
+ */
+router.delete('/me/fcm-token', authenticate, usersController.removeFcmToken);
+
 export default router;

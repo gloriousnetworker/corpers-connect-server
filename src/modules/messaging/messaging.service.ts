@@ -8,6 +8,7 @@ import {
 } from '../../shared/utils/errors';
 import type { CreateConversationDto, SendMessageDto } from './messaging.validation';
 import { MessageType, ParticipantRole } from '@prisma/client';
+import { notificationsService } from '../notifications/notifications.service';
 
 const DEFAULT_LIMIT = 30;
 const ONLINE_PREFIX = 'user:online:';
@@ -276,6 +277,21 @@ export const messagingService = {
       where: { conversationId_userId: { conversationId, userId } },
       data: { lastReadAt: new Date() },
     });
+
+    // Notify other participants of DM
+    const otherParticipants = await prisma.conversationParticipant.findMany({
+      where: { conversationId, userId: { not: userId } },
+      select: { userId: true },
+    });
+    for (const p of otherParticipants) {
+      void notificationsService.create({
+        recipientId: p.userId,
+        actorId: userId,
+        type: 'DM_RECEIVED',
+        entityType: 'Conversation',
+        entityId: conversationId,
+      });
+    }
 
     return message;
   },

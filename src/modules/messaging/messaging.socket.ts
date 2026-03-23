@@ -9,6 +9,9 @@ export function registerMessagingHandlers(io: SocketServer) {
 
     console.info(`🔌 Socket connected: userId=${userId} socketId=${socket.id}`);
 
+    // Join personal room for notifications
+    void socket.join(`user:${userId}`);
+
     // Mark user online in Redis
     try {
       await messagingService.setOnline(userId);
