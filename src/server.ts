@@ -1,3 +1,8 @@
+// Force IPv4 DNS resolution — Railway containers prefer IPv6 by default,
+// which causes ENETUNREACH when connecting to smtp.gmail.com:587
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import { env } from './config/env';
 import { redis } from './config/redis';
 import { prisma } from './config/prisma';
