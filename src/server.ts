@@ -10,6 +10,7 @@ import { prisma } from './config/prisma';
 import app from './app';
 import { initSocket } from './config/socket';
 import { registerMessagingHandlers } from './modules/messaging/messaging.socket';
+import { registerCallHandlers } from './modules/calls/calls.socket';
 
 // Initialise Firebase (side-effect import — just runs the config)
 import './config/firebase';
@@ -29,6 +30,7 @@ async function startServer() {
     const httpServer = createServer(app);
     const io = initSocket(httpServer);
     registerMessagingHandlers(io);
+    registerCallHandlers(io);
 
     // Start HTTP server
     const server = httpServer;
