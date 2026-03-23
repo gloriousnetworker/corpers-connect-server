@@ -12,6 +12,11 @@ import authRoutes from './modules/auth/auth.routes';
 
 const app = express();
 
+// ── Trust Proxy (required for Railway / any reverse-proxy host) ───────────────
+// Railway sits behind a load balancer that sets X-Forwarded-For.
+// Without this, express-rate-limit cannot identify real client IPs.
+app.set('trust proxy', 1);
+
 // ── Security ──────────────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(
