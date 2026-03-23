@@ -5,6 +5,7 @@ const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false, // STARTTLS
+  family: 4, // Force IPv4 — Railway containers default to IPv6 which Gmail SMTP blocks
   auth: {
     user: env.GMAIL_USER,
     pass: env.GMAIL_APP_PASSWORD,
