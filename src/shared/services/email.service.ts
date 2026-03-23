@@ -1,9 +1,8 @@
 import nodemailer from 'nodemailer';
-import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { env } from '../../config/env';
 
 // IPv4 is forced at DNS level via dns.setDefaultResultOrder('ipv4first') in server.ts
-const smtpOptions: SMTPTransport.Options = {
+const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false, // STARTTLS
@@ -11,9 +10,7 @@ const smtpOptions: SMTPTransport.Options = {
     user: env.GMAIL_USER,
     pass: env.GMAIL_APP_PASSWORD,
   },
-};
-
-const transporter = nodemailer.createTransport(smtpOptions);
+});
 
 export const emailService = {
   async sendOTP(to: string, name: string, otp: string, purpose: string): Promise<void> {
