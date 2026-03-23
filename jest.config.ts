@@ -8,6 +8,7 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^ioredis$': 'ioredis-mock',
+    '^bullmq$': '<rootDir>/src/__tests__/__mocks__/bullmq.ts',
   },
   setupFiles: ['<rootDir>/src/__tests__/setup.ts'],
   collectCoverageFrom: [

@@ -6,7 +6,7 @@ import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { jwtService } from '../../shared/services/jwt.service';
 import { otpService } from '../../shared/services/otp.service';
-import { emailService } from '../../shared/services/email.service';
+import { addEmailJob } from '../../jobs';
 import { nyscService } from '../nysc/nysc.service';
 import {
   BadRequestError,
@@ -61,20 +61,13 @@ export const authService = {
     const otp = otpService.generate();
     await otpService.store(`reg:${corper.email}`, otp);
 
-    let emailDelivered = true;
-    try {
-      await emailService.sendOTP(corper.email, corper.firstName, otp, 'registration');
-    } catch (emailErr) {
-      emailDelivered = false;
-      console.error('[EMAIL] Failed to send OTP — continuing without email:', emailErr);
-    }
+    // Enqueue OTP email — async delivery with auto-retry (3 attempts, exponential backoff)
+    void addEmailJob({ type: 'SEND_OTP', to: corper.email, name: corper.firstName, otp, purpose: 'registration' });
 
     return {
       email: corper.email,
       maskedEmail: maskEmail(corper.email),
-      message: emailDelivered
-        ? `Verification code sent to ${maskEmail(corper.email)}`
-        : `Email delivery failed — use EXPOSE_DEV_OTP flag or check SMTP config`,
+      message: `Verification code sent to ${maskEmail(corper.email)}`,
       // Only expose OTP when explicitly enabled (e.g. Railway SMTP is blocked)
       ...(env.EXPOSE_DEV_OTP && { devOtp: otp }),
     };
@@ -242,11 +235,8 @@ export const authService = {
     const otp = otpService.generate();
     await otpService.store(`reset:${email}`, otp);
 
-    try {
-      await emailService.sendOTP(email, user.firstName, otp, 'forgot-password');
-    } catch (emailErr) {
-      console.error('[EMAIL] Failed to send reset OTP:', emailErr);
-    }
+    // Enqueue reset OTP email asynchronously
+    void addEmailJob({ type: 'SEND_OTP', to: email, name: user.firstName, otp, purpose: 'forgot-password' });
 
     return {
       message: `Reset code sent to ${maskEmail(email)}`,

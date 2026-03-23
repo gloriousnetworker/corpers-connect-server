@@ -1,6 +1,6 @@
 # Corpers Connect Backend — Implementation Progress
 
-**Last Updated:** 2026-03-23 (Phase 10 complete)
+**Last Updated:** 2026-03-24 (Phase 11 complete)
 **Backend URL:** https://corpers-connect-server-production.up.railway.app
 **Platform:** Railway (Node.js + PostgreSQL + Redis)
 
@@ -20,7 +20,7 @@
 | Phase 8 | Opportunities Module | ✅ **COMPLETE** |
 | Phase 9 | Subscriptions & Level Progression | ✅ **COMPLETE** |
 | Phase 10 | Admin APIs | ✅ **COMPLETE** |
-| Phase 11 | Background Jobs (BullMQ) | ⏳ Not Started |
+| Phase 11 | Background Jobs (BullMQ) | ✅ **COMPLETE** |
 | Phase 12 | Testing, Postman Docs & Deployment | 🔄 **Partial** |
 
 ---
@@ -600,3 +600,40 @@ Tested against `https://corpers-connect-server-production.up.railway.app`:
 ### 10.5 Deployment ✅
 - Committed, pushed to GitHub, Railway auto-deployed
 
+
+---
+
+## Phase 11 — Background Jobs (BullMQ) ✅ COMPLETE
+
+### 11.1 Architecture
+- **Queue backend:** BullMQ v5 (backed by existing Railway Redis)
+- **Same process:** Workers run inside the Express/HTTP server process
+- **Test isolation:** BullMQ mocked via `moduleNameMapper` in Jest; processors tested directly
+- **Email refactor:** `auth.service.ts` OTP emails enqueued via `addEmailJob()` — 3 retries + exponential backoff
+
+### 11.2 Queues
+
+| Queue | Name | Description |
+|---|---|---|
+| Email | `email` | Async delivery (SEND_OTP, SEND_WELCOME) — 3 attempts |
+| Subscription | `subscription-maintenance` | Expire overdue subs + downgrade user tier |
+| Level | `level-check` | Promote OTONDO → KOPA for eligible users |
+| Cleanup | `cleanup` | Delete expired stories + old read notifications |
+
+### 11.3 Scheduled Jobs (Cron)
+
+| Job | Schedule | What it does |
+|---|---|---|
+| expire-subscriptions | Every hour | ACTIVE subs past endDate → EXPIRED + user FREE + re-evaluate level |
+| check-level-promotions | Every 6h | OTONDO + 30 days + verified → KOPA |
+| delete-expired-stories | Daily 02:00 | Hard-delete stories past 24h expiresAt |
+| delete-old-notifications | Daily 02:15 | Hard-delete read notifications >30 days |
+
+### 11.4 Tests ✅
+- 16 unit tests + 11 integration tests = 27 job tests
+- Full suite: **460/460 tests passing** across 23 test suites
+
+### 11.5 Deployment ✅
+- Workers + schedulers start on server boot (skipped in test env)
+- Graceful shutdown closes all workers
+- Committed, pushed to GitHub, Railway auto-deployed

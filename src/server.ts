@@ -11,6 +11,7 @@ import app from './app';
 import { initSocket } from './config/socket';
 import { registerMessagingHandlers } from './modules/messaging/messaging.socket';
 import { registerCallHandlers } from './modules/calls/calls.socket';
+import { initWorkers, initSchedulers, closeWorkers } from './jobs';
 
 // Initialise Firebase (side-effect import — just runs the config)
 import './config/firebase';
@@ -32,6 +33,12 @@ async function startServer() {
     registerMessagingHandlers(io);
     registerCallHandlers(io);
 
+    // Initialise background jobs (workers + cron schedulers)
+    if (env.NODE_ENV !== 'test') {
+      initWorkers();
+      await initSchedulers();
+    }
+
     // Start HTTP server
     const server = httpServer;
     server.listen(PORT, () => {
@@ -51,6 +58,7 @@ async function startServer() {
     const shutdown = async (signal: string) => {
       console.info(`\n⚠️  ${signal} received. Shutting down gracefully...`);
       server.close(async () => {
+        await closeWorkers();
         await prisma.$disconnect();
         await redis.quit();
         console.info('✅ Server shut down cleanly');
