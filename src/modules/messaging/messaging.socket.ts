@@ -1,0 +1,133 @@
+import { Server as SocketServer } from 'socket.io';
+import { prisma } from '../../config/prisma';
+import { messagingService } from './messaging.service';
+import type { AuthenticatedSocket } from '../../config/socket';
+
+export function registerMessagingHandlers(io: SocketServer) {
+  io.on('connection', async (socket: AuthenticatedSocket) => {
+    const userId = socket.data.userId;
+
+    console.info(`🔌 Socket connected: userId=${userId} socketId=${socket.id}`);
+
+    // Mark user online in Redis
+    try {
+      await messagingService.setOnline(userId);
+    } catch {
+      // Non-fatal
+    }
+
+    // Auto-join all conversation rooms this user belongs to
+    try {
+      const participations = await prisma.conversationParticipant.findMany({
+        where: { userId },
+        select: { conversationId: true },
+      });
+      for (const { conversationId } of participations) {
+        void socket.join(`conversation:${conversationId}`);
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    // Broadcast online status to contacts
+    socket.broadcast.emit('user:online', { userId });
+
+    // ── Event Handlers ──────────────────────────────────────────────────────
+
+    /** Join a conversation room (called after creating a new conversation) */
+    socket.on('conversation:join', (conversationId: string) => {
+      void socket.join(`conversation:${conversationId}`);
+    });
+
+    /** Leave a conversation room */
+    socket.on('conversation:leave', (conversationId: string) => {
+      void socket.leave(`conversation:${conversationId}`);
+    });
+
+    /** Typing indicators */
+    socket.on('typing:start', ({ conversationId }: { conversationId: string }) => {
+      socket.to(`conversation:${conversationId}`).emit('typing:start', { conversationId, userId });
+    });
+
+    socket.on('typing:stop', ({ conversationId }: { conversationId: string }) => {
+      socket.to(`conversation:${conversationId}`).emit('typing:stop', { conversationId, userId });
+    });
+
+    /** Real-time message send — persists to DB and broadcasts to room */
+    socket.on(
+      'message:send',
+      async (
+        data: {
+          conversationId: string;
+          content?: string;
+          type?: string;
+          mediaUrl?: string;
+          replyToId?: string;
+        },
+        ack?: (result: { success: boolean; message?: unknown; error?: string }) => void,
+      ) => {
+        try {
+          const message = await messagingService.sendMessage(userId, data.conversationId, {
+            content: data.content,
+            type: (data.type ?? 'TEXT') as never,
+            mediaUrl: data.mediaUrl,
+            replyToId: data.replyToId,
+          });
+
+          // Broadcast to all participants in the room
+          io.to(`conversation:${data.conversationId}`).emit('message:new', message);
+
+          if (ack) ack({ success: true, message });
+        } catch (err) {
+          const error = err instanceof Error ? err.message : 'Failed to send message';
+          if (ack) ack({ success: false, error });
+        }
+      },
+    );
+
+    /** Mark messages as read */
+    socket.on(
+      'message:read',
+      async (data: { conversationId: string; messageIds: string[] }) => {
+        try {
+          await messagingService.markMessagesRead(userId, data.conversationId, data.messageIds);
+          socket
+            .to(`conversation:${data.conversationId}`)
+            .emit('message:read', { conversationId: data.conversationId, userId, messageIds: data.messageIds });
+        } catch {
+          // Non-fatal
+        }
+      },
+    );
+
+    /** Keep-alive ping to refresh online TTL */
+    socket.on('ping:online', async () => {
+      try {
+        await messagingService.refreshOnline(userId);
+      } catch {
+        // Non-fatal
+      }
+    });
+
+    // ── Disconnect ──────────────────────────────────────────────────────────
+
+    socket.on('disconnect', async (reason) => {
+      console.info(`🔌 Socket disconnected: userId=${userId} reason=${reason}`);
+
+      // If no other sockets for this user, mark offline
+      const sockets = await io.fetchSockets();
+      const stillConnected = sockets.some(
+        (s) => (s as unknown as AuthenticatedSocket).data?.userId === userId,
+      );
+
+      if (!stillConnected) {
+        try {
+          await messagingService.setOffline(userId);
+          io.emit('user:offline', { userId });
+        } catch {
+          // Non-fatal
+        }
+      }
+    });
+  });
+}

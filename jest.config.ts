@@ -18,6 +18,8 @@ const config: Config = {
   coverageDirectory: 'coverage',
   verbose: true,
   testTimeout: 30000,
+  // Integration tests share a single DB — run serially to avoid stateCode unique-constraint races
+  maxWorkers: 1,
 };
 
 export default config;

@@ -3,10 +3,13 @@
 import dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 
+import { createServer } from 'http';
 import { env } from './config/env';
 import { redis } from './config/redis';
 import { prisma } from './config/prisma';
 import app from './app';
+import { initSocket } from './config/socket';
+import { registerMessagingHandlers } from './modules/messaging/messaging.socket';
 
 // Initialise Firebase (side-effect import — just runs the config)
 import './config/firebase';
@@ -22,8 +25,14 @@ async function startServer() {
     // Connect Redis
     await redis.connect();
 
+    // Create HTTP server and attach Socket.IO
+    const httpServer = createServer(app);
+    const io = initSocket(httpServer);
+    registerMessagingHandlers(io);
+
     // Start HTTP server
-    const server = app.listen(PORT, () => {
+    const server = httpServer;
+    server.listen(PORT, () => {
       console.info(`
 ╔════════════════════════════════════════════╗
 ║     CORPERS CONNECT API — SERVER RUNNING   ║
