@@ -89,7 +89,7 @@ export const authController = {
     try {
       const { email } = forgotPasswordSchema.parse(req.body);
       const data = await authService.forgotPassword(email);
-      sendSuccess(res, null, data.message);
+      sendSuccess(res, data.devOtp ? { devOtp: data.devOtp } : null, data.message);
     } catch (err) {
       next(err);
     }

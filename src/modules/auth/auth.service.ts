@@ -392,28 +392,20 @@ function maskEmail(email: string): string {
   return `${masked}@${domain}`;
 }
 
-function sanitiseUser(user: {
-  id: string;
-  stateCode: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string | null;
-  servingState: string;
-  lga: string | null;
-  ppa: string | null;
-  batch: string;
-  profilePicture: string | null;
-  bio: string | null;
-  level: string;
-  isVerified: boolean;
-  subscriptionTier: string;
-  isOnboarded: boolean;
-  isFirstLogin: boolean;
-  corperTag: boolean;
-  corperTagLabel: string | null;
-  twoFactorEnabled: boolean;
-}) {
-  const { ...safe } = user;
+function sanitiseUser(user: Record<string, unknown>) {
+  // Explicitly exclude all sensitive fields — never expose these to clients
+  const {
+    passwordHash: _passwordHash,
+    twoFactorSecret: _twoFactorSecret,
+    fcmTokens: _fcmTokens,
+    isActive: _isActive,
+    ...safe
+  } = user as {
+    passwordHash: string;
+    twoFactorSecret: string | null;
+    fcmTokens: string[];
+    isActive: boolean;
+    [key: string]: unknown;
+  };
   return safe;
 }
