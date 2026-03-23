@@ -20,6 +20,7 @@ import notificationRoutes from './modules/notifications/notifications.routes';
 import marketplaceRoutes from './modules/marketplace/marketplace.routes';
 import callRoutes from './modules/calls/calls.routes';
 import opportunityRoutes from './modules/opportunities/opportunities.routes';
+import subscriptionRoutes from './modules/subscriptions/subscriptions.routes';
 
 const app = express();
 
@@ -45,7 +46,15 @@ app.use(
 );
 
 // ── Parsing & Compression ─────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
+// Capture raw body for Paystack webhook HMAC verification
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, _res, buf) => {
+      (req as import('express').Request).rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 
@@ -81,7 +90,7 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/marketplace', marketplaceRoutes);
 app.use('/api/v1/calls', callRoutes);
 app.use('/api/v1/opportunities', opportunityRoutes);
-// app.use('/api/v1/subscriptions', subscriptionRoutes);
+app.use('/api/v1/subscriptions', subscriptionRoutes);
 // app.use('/api/v1/admin', adminRoutes);
 
 // ── 404 & Error Handlers ──────────────────────────────────────────────────────

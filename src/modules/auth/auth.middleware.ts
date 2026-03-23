@@ -12,6 +12,7 @@ declare global {
         jti: string;
         sessionId?: string;
       };
+      rawBody?: Buffer;
     }
   }
 }
