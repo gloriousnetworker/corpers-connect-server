@@ -11,7 +11,7 @@ export const emailService = {
       '2fa': 'Your Corpers Connect login code',
     };
 
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: env.EMAIL_FROM,
       to,
       subject: subjects[purpose] ?? 'Your Corpers Connect OTP',
@@ -38,6 +38,13 @@ export const emailService = {
         </html>
       `,
     });
+
+    if (result.error) {
+      console.error(`[EMAIL ERROR] Failed to send ${purpose} OTP to ${to}:`, result.error);
+      throw new Error(`Email delivery failed: ${result.error.message}`);
+    }
+
+    console.info(`[EMAIL] ${purpose} OTP sent successfully to ${to} | id: ${result.data?.id}`);
   },
 
   async sendWelcome(to: string, name: string, defaultPassword: string): Promise<void> {
