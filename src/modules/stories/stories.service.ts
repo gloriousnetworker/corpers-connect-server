@@ -1,0 +1,136 @@
+import { prisma } from '../../config/prisma';
+import { NotFoundError, ForbiddenError } from '../../shared/utils/errors';
+import { addDays } from 'date-fns';
+
+const AUTHOR_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  profilePicture: true,
+  isVerified: true,
+} as const;
+
+export const storiesService = {
+  async createStory(
+    userId: string,
+    mediaUrl: string,
+    mediaType: 'image' | 'video',
+    caption?: string,
+  ) {
+    return prisma.story.create({
+      data: {
+        authorId: userId,
+        mediaUrl,
+        mediaType,
+        caption,
+        expiresAt: addDays(new Date(), 1), // 24 hours
+      },
+      include: { author: { select: AUTHOR_SELECT } },
+    });
+  },
+
+  // Stories from followed users (grouped by author, active only)
+  async getStories(userId: string) {
+    const followedIds = await prisma.follow
+      .findMany({ where: { followerId: userId }, select: { followingId: true } })
+      .then((rows) => rows.map((r) => r.followingId));
+
+    const blockedIds = await prisma.block
+      .findMany({
+        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+        select: { blockerId: true, blockedId: true },
+      })
+      .then((rows) => rows.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
+
+    // Include own stories too
+    const authorIds = [...new Set([userId, ...followedIds])].filter(
+      (id) => !blockedIds.includes(id),
+    );
+
+    const stories = await prisma.story.findMany({
+      where: {
+        authorId: { in: authorIds },
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        author: { select: AUTHOR_SELECT },
+        views: { where: { viewerId: userId }, select: { viewerId: true } },
+        _count: { select: { views: true } },
+      },
+    });
+
+    // Group by author
+    const grouped = new Map<string, typeof stories>();
+    for (const story of stories) {
+      const existing = grouped.get(story.authorId) ?? [];
+      existing.push(story);
+      grouped.set(story.authorId, existing);
+    }
+
+    return Array.from(grouped.entries()).map(([authorId, authorStories]) => ({
+      author: authorStories[0].author,
+      authorId,
+      stories: authorStories.map((s) => ({
+        ...s,
+        viewed: s.views.length > 0,
+        views: undefined,
+      })),
+      hasUnviewed: authorStories.some((s) => s.views.length === 0),
+    }));
+  },
+
+  async viewStory(viewerId: string, storyId: string) {
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+      include: { author: { select: AUTHOR_SELECT }, _count: { select: { views: true } } },
+    });
+    if (!story) throw new NotFoundError('Story not found');
+    if (story.expiresAt < new Date()) throw new NotFoundError('Story has expired');
+
+    // Log view (upsert — idempotent)
+    await prisma.storyView.upsert({
+      where: { storyId_viewerId: { storyId, viewerId } },
+      create: { storyId, viewerId },
+      update: {},
+    });
+
+    return story;
+  },
+
+  async deleteStory(userId: string, storyId: string) {
+    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    if (!story) throw new NotFoundError('Story not found');
+    if (story.authorId !== userId) throw new ForbiddenError('Not your story');
+    await prisma.story.delete({ where: { id: storyId } });
+  },
+
+  async addHighlight(userId: string, storyId: string, title?: string) {
+    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    if (!story) throw new NotFoundError('Story not found');
+    if (story.authorId !== userId) throw new ForbiddenError('Not your story');
+
+    await prisma.storyHighlight.upsert({
+      where: { userId_storyId: { userId, storyId } },
+      create: { userId, storyId, title },
+      update: { title },
+    });
+  },
+
+  async removeHighlight(userId: string, storyId: string) {
+    await prisma.storyHighlight.deleteMany({ where: { userId, storyId } });
+  },
+
+  async getUserHighlights(targetUserId: string) {
+    const highlights = await prisma.storyHighlight.findMany({
+      where: { userId: targetUserId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        story: {
+          select: { id: true, mediaUrl: true, mediaType: true, caption: true, createdAt: true },
+        },
+      },
+    });
+    return highlights;
+  },
+};

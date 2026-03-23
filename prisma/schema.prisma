@@ -305,7 +305,6 @@ model Post {
   reactions PostReaction[]
   comments  Comment[]
   bookmarks Bookmark[]
-  reports   Report[]
 
   @@index([authorId])
   @@index([createdAt(sort: Desc)])
@@ -517,7 +516,6 @@ model MarketplaceListing {
 
   seller       User                @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   inquiries    ListingInquiry[]
-  reports      Report[]
 
   @@index([sellerId])
   @@index([servingState])
@@ -640,9 +638,9 @@ model Report {
   reviewedAt     DateTime?
   createdAt      DateTime         @default(now())
 
-  reporter User                @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  post     Post?               @relation(fields: [entityId], references: [id], onDelete: Cascade, map: "report_post_fk")
-  listing  MarketplaceListing? @relation(fields: [entityId], references: [id], onDelete: Cascade, map: "report_listing_fk")
+  // entityType + entityId is a polymorphic reference — no FK constraint enforced
+  // Query via: prisma.report.findMany({ where: { entityType: 'POST', entityId: postId } })
+  reporter User @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([entityType, entityId])

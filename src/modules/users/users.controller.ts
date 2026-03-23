@@ -4,6 +4,8 @@ import { sendSuccess } from '../../shared/utils/apiResponse';
 import { updateMeSchema, onboardSchema, paginationSchema } from './users.validation';
 import { avatarUpload, uploadToCloudinary } from '../../shared/middleware/upload.middleware';
 import { AppError } from '../../shared/utils/errors';
+import { postsService } from '../posts/posts.service';
+import { storiesService } from '../stories/stories.service';
 
 // Express params are typed string | string[] — always extract as string
 const p = (val: string | string[]) => (Array.isArray(val) ? val[0] : val);
@@ -139,6 +141,37 @@ export const usersController = {
     try {
       const data = await usersService.getBlockedUsers(req.user!.id);
       sendSuccess(res, data, 'Blocked users retrieved');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Posts & Content ──────────────────────────────────────────────────────────
+
+  async getUserPosts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { cursor, limit } = paginationSchema.parse(req.query);
+      const data = await postsService.getUserPosts(req.user?.id, p(req.params.userId), cursor, limit);
+      sendSuccess(res, data, 'Posts retrieved');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getBookmarks(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { cursor, limit } = paginationSchema.parse(req.query);
+      const data = await postsService.getBookmarks(req.user!.id, cursor, limit);
+      sendSuccess(res, data, 'Bookmarks retrieved');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getUserHighlights(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await storiesService.getUserHighlights(p(req.params.userId));
+      sendSuccess(res, data, 'Highlights retrieved');
     } catch (err) {
       next(err);
     }

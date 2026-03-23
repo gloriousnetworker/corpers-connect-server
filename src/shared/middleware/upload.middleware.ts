@@ -20,6 +20,18 @@ export const avatarUpload = multer({
   fileFilter: imageFilter,
 }).single('avatar');
 
+// For stories and reels: images OR videos up to 50 MB
+export const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
+      return cb(new AppError('Only image and video files are allowed', 400));
+    }
+    cb(null, true);
+  },
+}).single('media');
+
 export const uploadToCloudinary = (
   buffer: Buffer,
   folder: string,
@@ -31,6 +43,25 @@ export const uploadToCloudinary = (
       (error, result) => {
         if (error || !result) return reject(error ?? new Error('Cloudinary upload failed'));
         resolve(result.secure_url);
+      },
+    );
+    stream.end(buffer);
+  });
+
+// For stories/reels — auto-detect image vs video
+export const uploadMediaToCloudinary = (
+  buffer: Buffer,
+  folder: string,
+): Promise<{ url: string; mediaType: 'image' | 'video' }> =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: 'auto' },
+      (error, result) => {
+        if (error || !result) return reject(error ?? new Error('Cloudinary upload failed'));
+        resolve({
+          url: result.secure_url,
+          mediaType: result.resource_type === 'video' ? 'video' : 'image',
+        });
       },
     );
     stream.end(buffer);

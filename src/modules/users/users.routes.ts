@@ -82,4 +82,21 @@ router.post('/:userId/block', authenticate, usersController.blockUser);
  */
 router.delete('/:userId/block', authenticate, usersController.unblockUser);
 
+// ── Content ───────────────────────────────────────────────────────────────────
+
+/** GET /api/v1/users/:userId/posts
+ *  Paginated posts by a user (visibility rules apply). Optional auth.
+ */
+router.get('/:userId/posts', optionalAuth, usersController.getUserPosts);
+
+/** GET /api/v1/users/me/bookmarks
+ *  Authenticated user's bookmarked posts.
+ */
+router.get('/me/bookmarks', authenticate, usersController.getBookmarks);
+
+/** GET /api/v1/users/:userId/highlights
+ *  Story highlights for a user's profile.
+ */
+router.get('/:userId/highlights', usersController.getUserHighlights);
+
 export default router;

@@ -11,6 +11,10 @@ import { errorHandler, notFoundHandler } from './shared/middleware/errorHandler'
 import authRoutes from './modules/auth/auth.routes';
 import userRoutes from './modules/users/users.routes';
 import discoverRoutes from './modules/discover/discover.routes';
+import postRoutes from './modules/posts/posts.routes';
+import feedRoutes from './modules/feed/feed.routes';
+import storyRoutes from './modules/stories/stories.routes';
+import reelRoutes from './modules/reels/reels.routes';
 
 const app = express();
 
@@ -63,11 +67,12 @@ app.get('/health', (_req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/discover', discoverRoutes);
+app.use('/api/v1/posts', postRoutes);
+app.use('/api/v1/feed', feedRoutes);
+app.use('/api/v1/stories', storyRoutes);
+app.use('/api/v1/reels', reelRoutes);
 
 // More routes added here as phases progress:
-// app.use('/api/v1/feed', feedRoutes);
-// app.use('/api/v1/stories', storyRoutes);
-// app.use('/api/v1/reels', reelRoutes);
 // app.use('/api/v1/conversations', messagingRoutes);
 // app.use('/api/v1/notifications', notificationRoutes);
 // app.use('/api/v1/marketplace', marketplaceRoutes);
