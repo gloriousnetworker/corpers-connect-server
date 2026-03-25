@@ -27,6 +27,12 @@ router.patch('/:postId', authenticate, postsController.update);
  */
 router.delete('/:postId', authenticate, postsController.remove);
 
+/** POST /api/v1/posts/:postId/share
+ *  Record a share event for a post. Increments sharesCount by 1.
+ *  Call this after the native share sheet confirms the share.
+ */
+router.post('/:postId/share', authenticate, postsController.share);
+
 /** POST /api/v1/posts/:postId/report
  *  Report a post for review. Body: { reason, details? }
  */

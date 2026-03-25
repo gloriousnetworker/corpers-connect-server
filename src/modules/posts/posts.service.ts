@@ -219,6 +219,17 @@ export const postsService = {
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
   },
 
+  async sharePost(userId: string, postId: string) {
+    const post = await prisma.post.findUnique({ where: { id: postId } });
+    if (!post) throw new NotFoundError('Post not found');
+
+    return prisma.post.update({
+      where: { id: postId },
+      data: { sharesCount: { increment: 1 } },
+      select: { id: true, sharesCount: true },
+    });
+  },
+
   async reportPost(reporterId: string, postId: string, reason: string, details?: string) {
     const post = await prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundError('Post not found');

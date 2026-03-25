@@ -304,18 +304,19 @@ model AdminUser {
 // ─── POSTS & FEED ─────────────────────────────────────────────────────────────
 
 model Post {
-  id         String         @id @default(cuid())
-  authorId   String
-  content    String?        @db.Text
-  mediaUrls  String[]       @default([])
-  visibility PostVisibility @default(PUBLIC)
-  postType   PostType       @default(REGULAR)
-  repostOfId String?
-  isEdited   Boolean        @default(false)
-  editedAt   DateTime?
-  isFlagged  Boolean        @default(false)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id          String         @id @default(cuid())
+  authorId    String
+  content     String?        @db.Text
+  mediaUrls   String[]       @default([])
+  visibility  PostVisibility @default(PUBLIC)
+  postType    PostType       @default(REGULAR)
+  repostOfId  String?
+  isEdited    Boolean        @default(false)
+  editedAt    DateTime?
+  isFlagged   Boolean        @default(false)
+  sharesCount Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   repostOf  Post?          @relation("Reposts", fields: [repostOfId], references: [id])

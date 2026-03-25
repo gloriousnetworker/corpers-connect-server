@@ -54,6 +54,15 @@ export const postsController = {
     }
   },
 
+  async share(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await postsService.sharePost(req.user!.id, p(req.params.postId));
+      sendSuccess(res, data, 'Post shared');
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async report(req: Request, res: Response, next: NextFunction) {
     try {
       const { reason, details } = reportSchema.parse(req.body);

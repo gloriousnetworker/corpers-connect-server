@@ -370,6 +370,70 @@ describe('POST /api/v1/posts/:postId/report', () => {
   });
 });
 
+// ── Share ──────────────────────────────────────────────────────────────────────
+
+describe('POST /api/v1/posts/:postId/share', () => {
+  let token: string;
+  let postId: string;
+
+  beforeAll(async () => {
+    const user = await createUser();
+    token = makeToken(user.id);
+
+    const res = await request(app)
+      .post('/api/v1/posts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: 'Share this post!', visibility: 'PUBLIC' });
+
+    postId = res.body.data.id;
+  });
+
+  it('increments sharesCount and returns updated count', async () => {
+    const res = await request(app)
+      .post(`/api/v1/posts/${postId}/share`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ id: postId, sharesCount: 1 });
+  });
+
+  it('increments sharesCount additively on repeated shares', async () => {
+    await request(app)
+      .post(`/api/v1/posts/${postId}/share`)
+      .set('Authorization', `Bearer ${token}`);
+
+    const res = await request(app)
+      .post(`/api/v1/posts/${postId}/share`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.sharesCount).toBe(3);
+  });
+
+  it('returns 404 for a non-existent post', async () => {
+    const res = await request(app)
+      .post('/api/v1/posts/does-not-exist/share')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('requires authentication', async () => {
+    const res = await request(app).post(`/api/v1/posts/${postId}/share`);
+    expect(res.status).toBe(401);
+  });
+
+  it('sharesCount is included in the post response', async () => {
+    const res = await request(app)
+      .get(`/api/v1/posts/${postId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('sharesCount');
+    expect(typeof res.body.data.sharesCount).toBe('number');
+  });
+});
+
 // ── Feed ───────────────────────────────────────────────────────────────────────
 
 describe('GET /api/v1/feed', () => {
