@@ -66,6 +66,19 @@ async function main() {
   });
   console.info(`✅ Dev corper 2: ${corper2.stateCode} — ${corper2.firstName} ${corper2.lastName}`);
 
+  // ── Mutual follow between the two dev corpers ────────────────────────────
+  await prisma.follow.upsert({
+    where: { followerId_followingId: { followerId: corper1.id, followingId: corper2.id } },
+    create: { followerId: corper1.id, followingId: corper2.id },
+    update: {},
+  });
+  await prisma.follow.upsert({
+    where: { followerId_followingId: { followerId: corper2.id, followingId: corper1.id } },
+    create: { followerId: corper2.id, followingId: corper1.id },
+    update: {},
+  });
+  console.info(`✅ Mutual follow: ${corper1.firstName} ↔ ${corper2.firstName}`);
+
   console.info('\n🎉 Database seeded successfully!');
   console.info('─────────────────────────────────────────');
   console.info('Admin login:  admin@corpers-connect.ng / Admin@1234');
