@@ -27,7 +27,7 @@ async function main() {
   const corper1Password = await bcrypt.hash('Corper@1234', SALT_ROUNDS);
   const corper1 = await prisma.user.upsert({
     where: { stateCode: 'KG/25C/1358' },
-    update: {},
+    update: { isOnboarded: true, isFirstLogin: false },
     create: {
       stateCode: 'KG/25C/1358',
       firstName: 'Iniubong',
@@ -39,8 +39,8 @@ async function main() {
       lga: 'Lokoja',
       ppa: 'Mega Tech Solutions Lokoja',
       batch: '2025C',
-      isOnboarded: false,
-      isFirstLogin: true,
+      isOnboarded: true,
+      isFirstLogin: false,
     },
   });
   console.info(`✅ Dev corper 1: ${corper1.stateCode} — ${corper1.firstName} ${corper1.lastName}`);
@@ -48,7 +48,7 @@ async function main() {
   const corper2Password = await bcrypt.hash('Corper@1234', SALT_ROUNDS);
   const corper2 = await prisma.user.upsert({
     where: { stateCode: 'KG/25C/1359' },
-    update: {},
+    update: { isOnboarded: true, isFirstLogin: false },
     create: {
       stateCode: 'KG/25C/1359',
       firstName: 'Pascal',
@@ -60,8 +60,8 @@ async function main() {
       lga: 'Lokoja',
       ppa: 'Mcbayan Multibix Services Limited',
       batch: '2025C',
-      isOnboarded: false,
-      isFirstLogin: true,
+      isOnboarded: true,
+      isFirstLogin: false,
     },
   });
   console.info(`✅ Dev corper 2: ${corper2.stateCode} — ${corper2.firstName} ${corper2.lastName}`);
