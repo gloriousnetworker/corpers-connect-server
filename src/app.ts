@@ -22,6 +22,7 @@ import callRoutes from './modules/calls/calls.routes';
 import opportunityRoutes from './modules/opportunities/opportunities.routes';
 import subscriptionRoutes from './modules/subscriptions/subscriptions.routes';
 import adminRoutes from './modules/admin/admin.routes';
+import mediaRoutes from './modules/media/media.routes';
 
 const app = express();
 
@@ -93,6 +94,7 @@ app.use('/api/v1/calls', callRoutes);
 app.use('/api/v1/opportunities', opportunityRoutes);
 app.use('/api/v1/subscriptions', subscriptionRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/media', mediaRoutes);
 
 // ── 404 & Error Handlers ──────────────────────────────────────────────────────
 app.use(notFoundHandler);
