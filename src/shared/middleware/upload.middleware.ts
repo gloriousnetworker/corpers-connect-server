@@ -20,13 +20,17 @@ export const avatarUpload = multer({
   fileFilter: imageFilter,
 }).single('avatar');
 
-// For stories and reels: images OR videos up to 50 MB
+// For stories, reels, and message media: images, videos, or audio up to 50 MB
 export const mediaUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
-      return cb(new AppError('Only image and video files are allowed', 400));
+    const ok =
+      file.mimetype.startsWith('image/') ||
+      file.mimetype.startsWith('video/') ||
+      file.mimetype.startsWith('audio/');
+    if (!ok) {
+      return cb(new AppError('Only image, video, and audio files are allowed', 400));
     }
     cb(null, true);
   },

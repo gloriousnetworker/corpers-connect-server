@@ -13,9 +13,15 @@ export const uploadMedia = async (req: Request, res: Response, next: NextFunctio
       return next(new AppError('No file provided', 400));
     }
 
+    // For audio files, upload to Cloudinary as raw/auto and always return 'audio'
+    if (req.file.mimetype.startsWith('audio/')) {
+      const { url } = await uploadMediaToCloudinary(req.file.buffer, 'corpers-connect/voice-notes');
+      return res.status(200).json({ success: true, data: { url, mediaType: 'audio' } });
+    }
+
     const { url, mediaType } = await uploadMediaToCloudinary(
       req.file.buffer,
-      'corpers-connect/posts',
+      'corpers-connect/messages',
     );
 
     res.status(200).json({

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { messagingService } from './messaging.service';
 import { sendSuccess } from '../../shared/utils/apiResponse';
+import { getIO } from '../../config/socket';
 import {
   createConversationSchema,
   updateConversationSchema,
@@ -118,11 +119,16 @@ export const messagingController = {
   async sendMessage(req: Request, res: Response, next: NextFunction) {
     try {
       const dto = sendMessageSchema.parse(req.body);
-      const data = await messagingService.sendMessage(
-        req.user!.id,
-        p(req.params.conversationId),
-        dto,
-      );
+      const conversationId = p(req.params.conversationId);
+      const data = await messagingService.sendMessage(req.user!.id, conversationId, dto);
+
+      // Push to all participants in real-time (including the sender's other devices)
+      try {
+        getIO().to(`conversation:${conversationId}`).emit('message:new', data);
+      } catch {
+        // Non-fatal — REST response already returned the message
+      }
+
       sendSuccess(res, data, 'Message sent', 201);
     } catch (err) {
       next(err);
@@ -147,12 +153,16 @@ export const messagingController = {
   async editMessage(req: Request, res: Response, next: NextFunction) {
     try {
       const { content } = editMessageSchema.parse(req.body);
+      const conversationId = p(req.params.conversationId);
       const data = await messagingService.editMessage(
         req.user!.id,
-        p(req.params.conversationId),
+        conversationId,
         p(req.params.messageId),
         content,
       );
+      try {
+        getIO().to(`conversation:${conversationId}`).emit('message:edited', data);
+      } catch { /* non-fatal */ }
       sendSuccess(res, data, 'Message updated');
     } catch (err) {
       next(err);
@@ -161,13 +171,13 @@ export const messagingController = {
 
   async deleteMessage(req: Request, res: Response, next: NextFunction) {
     try {
+      const conversationId = p(req.params.conversationId);
+      const messageId = p(req.params.messageId);
       const deleteFor = (req.query.for === 'all' ? 'all' : 'me') as 'me' | 'all';
-      await messagingService.deleteMessage(
-        req.user!.id,
-        p(req.params.conversationId),
-        p(req.params.messageId),
-        deleteFor,
-      );
+      await messagingService.deleteMessage(req.user!.id, conversationId, messageId, deleteFor);
+      try {
+        getIO().to(`conversation:${conversationId}`).emit('message:deleted', { messageId, deleteFor, conversationId });
+      } catch { /* non-fatal */ }
       sendSuccess(res, null, 'Message deleted');
     } catch (err) {
       next(err);
