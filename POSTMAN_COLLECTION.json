@@ -1,0 +1,1945 @@
+{
+  "info": {
+    "name": "Corpers Connect API",
+    "_postman_id": "corpers-connect-api-v1",
+    "description": "Complete API collection for Corpers Connect — a social platform for Nigerian NYSC corps members.\n\n## Setup\n1. Import this collection into Postman.\n2. Create an environment with the variable `baseUrl` set to your server URL (e.g., `http://localhost:3000` or your Railway URL).\n3. Run **Auth > Login** first — tokens are auto-saved to collection variables.\n4. For admin endpoints, run **Admin > Admin Login** first.\n\n## Environments\n- **Local:** `http://localhost:3000`\n- **Production:** Your Railway deployment URL\n\n## Authentication\nMost endpoints require a Bearer token. The collection auto-manages tokens via test scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "stateCode", "value": "AB/23A/1234", "type": "string" },
+    { "key": "otpToken", "value": "", "type": "string" },
+    { "key": "postId", "value": "", "type": "string" },
+    { "key": "commentId", "value": "", "type": "string" },
+    { "key": "storyId", "value": "", "type": "string" },
+    { "key": "reelId", "value": "", "type": "string" },
+    { "key": "conversationId", "value": "", "type": "string" },
+    { "key": "messageId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "listingId", "value": "", "type": "string" },
+    { "key": "callId", "value": "", "type": "string" },
+    { "key": "opportunityId", "value": "", "type": "string" },
+    { "key": "applicationId", "value": "", "type": "string" },
+    { "key": "sessionId", "value": "", "type": "string" },
+    { "key": "reportId", "value": "", "type": "string" },
+    { "key": "adminId", "value": "", "type": "string" },
+    { "key": "targetUserId", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "description": "Authentication endpoints — registration, login, 2FA, sessions, and password management.",
+      "item": [
+        {
+          "name": "Lookup Corper",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/lookup", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "lookup"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stateCode\": \"{{stateCode}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Lookup a corps member's NYSC data using their state code. Returns read-only NYSC profile for confirmation before registration."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Register — Initiate",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/register/initiate", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "register", "initiate"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stateCode\": \"{{stateCode}}\",\n  \"password\": \"Test@1234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Step 1 of registration. Validates state code against NYSC DB and sends a 6-digit OTP to the registered email."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "if (json.data && json.data.otpToken) {",
+              "  pm.collectionVariables.set('otpToken', json.data.otpToken);",
+              "  console.log('OTP token saved:', json.data.otpToken);",
+              "}"
+            ]}
+          }]
+        },
+        {
+          "name": "Register — Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/register/verify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "register", "verify"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otpToken\": \"{{otpToken}}\",\n  \"otp\": \"123456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Step 2 of registration. Verifies the OTP and creates the account. Returns access token and refresh token on success."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201', () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "if (json.data) {",
+              "  if (json.data.accessToken) pm.collectionVariables.set('accessToken', json.data.accessToken);",
+              "  if (json.data.refreshToken) pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+              "  if (json.data.user && json.data.user.id) pm.collectionVariables.set('userId', json.data.user.id);",
+              "}"
+            ]}
+          }]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{stateCode}}\",\n  \"password\": \"Test@1234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Login with state code or email + password. Returns JWT tokens. If 2FA is enabled, returns a challengeToken instead — use the 2FA Challenge endpoint."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "if (json.data) {",
+              "  if (json.data.accessToken) pm.collectionVariables.set('accessToken', json.data.accessToken);",
+              "  if (json.data.refreshToken) pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+              "  if (json.data.user && json.data.user.id) pm.collectionVariables.set('userId', json.data.user.id);",
+              "  if (json.data.challengeToken) pm.collectionVariables.set('challengeToken', json.data.challengeToken);",
+              "}"
+            ]}
+          }]
+        },
+        {
+          "name": "2FA — Challenge (Complete Login)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/2fa/challenge", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "2fa", "challenge"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"challengeToken\": \"{{challengeToken}}\",\n  \"totpCode\": \"123456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Complete 2FA login. Submit TOTP code and challenge token received from login. Returns JWT tokens."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "refresh"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Exchange a valid refresh token for a new access token + refresh token pair (single-use rotation)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data) {",
+              "  if (json.data.accessToken) pm.collectionVariables.set('accessToken', json.data.accessToken);",
+              "  if (json.data.refreshToken) pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+              "}"
+            ]}
+          }]
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "forgot-password"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "reset-password"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otpToken\": \"{{otpToken}}\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewTest@1234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "logout"] }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/change-password", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "change-password"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Test@1234\",\n  \"newPassword\": \"NewTest@1234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "2FA — Enable (Get QR Code)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/2fa/enable", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "2fa", "enable"] }
+          }
+        },
+        {
+          "name": "2FA — Verify Enable",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/2fa/verify-enable", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "2fa", "verify-enable"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totpCode\": \"123456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "2FA — Disable",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/2fa/disable", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "2fa", "disable"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totpCode\": \"123456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sessions — List",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/sessions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "sessions"] }
+          }
+        },
+        {
+          "name": "Sessions — Revoke One",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/sessions/{{sessionId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "sessions", "{{sessionId}}"] }
+          }
+        },
+        {
+          "name": "Sessions — Revoke All",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/sessions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "sessions"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Users",
+      "description": "User profiles, follow/unfollow, block/unblock, avatar upload, bookmarks, and FCM tokens.",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me"] }
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"NYSC corps member serving in Lagos\",\n  \"showCorperTag\": true,\n  \"corperTagLabel\": \"Batch A 2024\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Onboard User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me/onboard", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me", "onboard"] }
+          }
+        },
+        {
+          "name": "Upload Avatar",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me/avatar", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me", "avatar"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "avatar", "type": "file", "src": "", "description": "Image file (max 5MB)" }]
+            },
+            "description": "Upload a profile picture. Send as multipart/form-data with field name `avatar`. Max 5MB."
+          }
+        },
+        {
+          "name": "Get My Blocked Users",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me/blocked", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me", "blocked"] }
+          }
+        },
+        {
+          "name": "Get My Bookmarks",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me/bookmarks", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me", "bookmarks"] }
+          }
+        },
+        {
+          "name": "Get User Profile (Public)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}"] }
+          }
+        },
+        {
+          "name": "Follow User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/follow", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "follow"] }
+          }
+        },
+        {
+          "name": "Unfollow User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/follow", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "follow"] }
+          }
+        },
+        {
+          "name": "Get User Followers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/followers?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "followers"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Get User Following",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/following?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "following"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Check Is Following",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/is-following", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "is-following"] }
+          }
+        },
+        {
+          "name": "Block User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/block", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "block"] }
+          }
+        },
+        {
+          "name": "Unblock User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/block", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "block"] }
+          }
+        },
+        {
+          "name": "Get User's Posts",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/posts?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "posts"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Get User Highlights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/{{targetUserId}}/highlights", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "{{targetUserId}}", "highlights"] }
+          }
+        },
+        {
+          "name": "Register FCM Token",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me/fcm-token", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me", "fcm-token"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcmToken\": \"fcm-device-token-here\",\n  \"platform\": \"android\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Remove FCM Token",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me/fcm-token", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users", "me", "fcm-token"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcmToken\": \"fcm-device-token-here\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔍 Discover",
+      "description": "Discover other corps members — corpers in your state, follow suggestions, and search.",
+      "item": [
+        {
+          "name": "Corpers in My State",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/discover/corpers?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "discover", "corpers"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Follow Suggestions",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/discover/suggestions?limit=10",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "discover", "suggestions"],
+              "query": [{ "key": "limit", "value": "10" }]
+            }
+          }
+        },
+        {
+          "name": "Search Users",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/discover/search?q=john&limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "discover", "search"],
+              "query": [{ "key": "q", "value": "john" }, { "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Posts",
+      "description": "Create, read, update, and delete posts. Reactions, comments, and bookmarks.",
+      "item": [
+        {
+          "name": "Create Post",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"First post from Corpers Connect API!\",\n  \"visibility\": \"PUBLIC\",\n  \"mediaUrls\": []\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Create a post. `content` or at least one `mediaUrl` is required. `visibility` is PUBLIC | FOLLOWERS | PRIVATE."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201', () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('postId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Post",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}"] }
+          }
+        },
+        {
+          "name": "Update Post",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated post content\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Edit a post. Only the author can edit, and only within 15 minutes of creation."
+          }
+        },
+        {
+          "name": "Delete Post",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}"] }
+          }
+        },
+        {
+          "name": "Report Post",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/report", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "report"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"SPAM\",\n  \"description\": \"This post is spam\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "React to Post",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/react", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "react"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reaction\": \"LIKE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Add or update reaction. Reactions: LIKE | LOVE | FIRE | CLAP"
+          }
+        },
+        {
+          "name": "Remove Reaction",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/react", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "react"] }
+          }
+        },
+        {
+          "name": "Get Post Reactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/reactions?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "reactions"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Add Comment",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/comments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "comments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Great post!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('commentId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Add Reply to Comment",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/comments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "comments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Replying to your comment!\",\n  \"parentId\": \"{{commentId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Post Comments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/comments?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "comments"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "comments", "{{commentId}}"] }
+          }
+        },
+        {
+          "name": "Bookmark Post",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/bookmark", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "bookmark"] }
+          }
+        },
+        {
+          "name": "Remove Bookmark",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/posts/{{postId}}/bookmark", "host": ["{{baseUrl}}"], "path": ["api", "v1", "posts", "{{postId}}", "bookmark"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏠 Feed",
+      "item": [
+        {
+          "name": "Get Home Feed",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "feed"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            },
+            "description": "Paginated home feed. Returns own posts + followed users' posts + public posts from same serving state. Ordered by most recent."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📸 Stories",
+      "item": [
+        {
+          "name": "Upload Story",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/stories", "host": ["{{baseUrl}}"], "path": ["api", "v1", "stories"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "media", "type": "file", "src": "", "description": "Image or video file" },
+                { "key": "caption", "value": "My story caption", "type": "text" }
+              ]
+            },
+            "description": "Upload a story. Expires after 24 hours automatically."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('storyId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Stories Feed",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/stories", "host": ["{{baseUrl}}"], "path": ["api", "v1", "stories"] }
+          }
+        },
+        {
+          "name": "View Story",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/stories/{{storyId}}/view", "host": ["{{baseUrl}}"], "path": ["api", "v1", "stories", "{{storyId}}", "view"] }
+          }
+        },
+        {
+          "name": "Delete Story",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/stories/{{storyId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "stories", "{{storyId}}"] }
+          }
+        },
+        {
+          "name": "Add to Highlights",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/stories/{{storyId}}/highlight", "host": ["{{baseUrl}}"], "path": ["api", "v1", "stories", "{{storyId}}", "highlight"] }
+          }
+        },
+        {
+          "name": "Remove from Highlights",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/stories/{{storyId}}/highlight", "host": ["{{baseUrl}}"], "path": ["api", "v1", "stories", "{{storyId}}", "highlight"] }
+          }
+        },
+        {
+          "name": "Get User Highlights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/stories/users/{{targetUserId}}/highlights", "host": ["{{baseUrl}}"], "path": ["api", "v1", "stories", "users", "{{targetUserId}}", "highlights"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎬 Reels",
+      "item": [
+        {
+          "name": "Upload Reel",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/reels", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reels"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "media", "type": "file", "src": "" },
+                { "key": "caption", "value": "My reel caption", "type": "text" }
+              ]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('reelId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Reels Feed (Following)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reels?limit=10",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "reels"],
+              "query": [{ "key": "limit", "value": "10" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Explore Reels",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reels/explore?limit=10",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "reels", "explore"],
+              "query": [{ "key": "limit", "value": "10" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Get Reel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/reels/{{reelId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "reels", "{{reelId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💬 Messaging",
+      "item": [
+        {
+          "name": "Create DM Conversation",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"DM\",\n  \"participantId\": \"{{targetUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('conversationId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Create Group Conversation",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"GROUP\",\n  \"name\": \"Batch A Lagos Corpers\",\n  \"participantIds\": [\"{{targetUserId}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "List Conversations",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/conversations?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Get Conversation",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}"] }
+          }
+        },
+        {
+          "name": "Update Group (Name / Description)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Group Name\",\n  \"description\": \"Updated description\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Update Conversation Settings",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/settings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "settings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isArchived\": false,\n  \"isPinned\": true,\n  \"isMuted\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Add Participants to Group",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/participants", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "participants"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participantIds\": [\"{{targetUserId}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Leave Group",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/participants/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "participants", "me"] }
+          }
+        },
+        {
+          "name": "Remove Participant from Group",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/participants/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "participants", "{{targetUserId}}"] }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/messages", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "messages"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hello from the API!\",\n  \"type\": \"TEXT\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('messageId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Messages",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/messages?limit=30",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "messages"],
+              "query": [{ "key": "limit", "value": "30" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Edit Message",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/messages/{{messageId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "messages", "{{messageId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated message content\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete Message",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/messages/{{messageId}}?for=me",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "messages", "{{messageId}}"],
+              "query": [{ "key": "for", "value": "me", "description": "me | all" }]
+            }
+          }
+        },
+        {
+          "name": "Mark Messages as Read",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/conversations/{{conversationId}}/read", "host": ["{{baseUrl}}"], "path": ["api", "v1", "conversations", "{{conversationId}}", "read"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔔 Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications/unread-count", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications", "unread-count"] }
+          }
+        },
+        {
+          "name": "Mark Notifications as Read",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications/read", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications", "read"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notificationIds\": [\"{{notificationId}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications/read-all", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications", "read-all"] }
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "notifications", "{{notificationId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛒 Marketplace",
+      "item": [
+        {
+          "name": "Submit Seller Application",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/apply", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "apply"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "idDoc", "type": "file", "src": "", "description": "Government-issued ID document (image)" },
+                { "key": "businessName", "value": "My Business Name", "type": "text" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Application Status",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/my-application", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "my-application"] }
+          }
+        },
+        {
+          "name": "Get My Listings",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketplace/my-listings?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "my-listings"],
+              "query": [{ "key": "limit", "value": "20" }, { "key": "cursor", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Browse Listings",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketplace/listings?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "listings"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true },
+                { "key": "category", "value": "", "disabled": true, "description": "ELECTRONICS | FASHION | FOOD | SERVICES | OTHER" },
+                { "key": "listingType", "value": "", "disabled": true, "description": "SALE | RENT | SERVICE" },
+                { "key": "state", "value": "", "disabled": true },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "minPrice", "value": "", "disabled": true },
+                { "key": "maxPrice", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Listing",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/listings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "listings"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "images", "type": "file", "src": "", "description": "Product images (multiple allowed)" },
+                { "key": "title", "value": "iPhone 13 Pro", "type": "text" },
+                { "key": "description", "value": "Used iPhone in great condition", "type": "text" },
+                { "key": "price", "value": "250000", "type": "text", "description": "Price in kobo" },
+                { "key": "category", "value": "ELECTRONICS", "type": "text" },
+                { "key": "listingType", "value": "SALE", "type": "text" },
+                { "key": "condition", "value": "USED", "type": "text" }
+              ]
+            },
+            "description": "Only approved sellers can create listings."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('listingId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Listing",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "listings", "{{listingId}}"] }
+          }
+        },
+        {
+          "name": "Update Listing",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "listings", "{{listingId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated listing title\",\n  \"price\": 200000\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete Listing",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/listings/{{listingId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "listings", "{{listingId}}"] }
+          }
+        },
+        {
+          "name": "Inquire About Listing",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/listings/{{listingId}}/inquire", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "listings", "{{listingId}}", "inquire"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Is this still available? What is the final price?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Listing Inquiries (Seller)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/marketplace/listings/{{listingId}}/inquiries", "host": ["{{baseUrl}}"], "path": ["api", "v1", "marketplace", "listings", "{{listingId}}", "inquiries"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📞 Calls",
+      "item": [
+        {
+          "name": "Initiate Call",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/calls", "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverId\": \"{{targetUserId}}\",\n  \"type\": \"AUDIO\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Initiate a call. Returns callLog, Agora tokens, and channel info. type: AUDIO | VIDEO"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.callLog && json.data.callLog.id) pm.collectionVariables.set('callId', json.data.callLog.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Call History",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calls?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true },
+                { "key": "type", "value": "", "disabled": true, "description": "AUDIO | VIDEO" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Call",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/calls/{{callId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls", "{{callId}}"] }
+          }
+        },
+        {
+          "name": "Accept Call",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/calls/{{callId}}/accept", "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls", "{{callId}}", "accept"] }
+          }
+        },
+        {
+          "name": "Reject Call",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/calls/{{callId}}/reject", "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls", "{{callId}}", "reject"] }
+          }
+        },
+        {
+          "name": "End Call",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/calls/{{callId}}/end", "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls", "{{callId}}", "end"] }
+          }
+        },
+        {
+          "name": "Mark Call as Missed",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/calls/{{callId}}/miss", "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls", "{{callId}}", "miss"] }
+          }
+        },
+        {
+          "name": "Refresh Call Token",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/calls/{{callId}}/token", "host": ["{{baseUrl}}"], "path": ["api", "v1", "calls", "{{callId}}", "token"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💼 Opportunities",
+      "item": [
+        {
+          "name": "Get Opportunities Feed",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/opportunities?limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true },
+                { "key": "type", "value": "", "disabled": true, "description": "JOB | INTERNSHIP | VOLUNTEER | GIG | OTHER" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Opportunity",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Frontend Developer Intern\",\n  \"description\": \"3-month internship for corps members with React skills\",\n  \"type\": \"INTERNSHIP\",\n  \"location\": \"Lagos\",\n  \"isRemote\": false,\n  \"deadline\": \"2025-12-31T00:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('opportunityId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get My Opportunities",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/mine", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "mine"] }
+          }
+        },
+        {
+          "name": "Get Saved Opportunities",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/saved", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "saved"] }
+          }
+        },
+        {
+          "name": "Get My Applications",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/applications/mine", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "applications", "mine"] }
+          }
+        },
+        {
+          "name": "Get Opportunity",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/{{opportunityId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "{{opportunityId}}"] }
+          }
+        },
+        {
+          "name": "Update Opportunity",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/{{opportunityId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "{{opportunityId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Opportunity Title\",\n  \"isOpen\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete Opportunity",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/{{opportunityId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "{{opportunityId}}"] }
+          }
+        },
+        {
+          "name": "Save Opportunity",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/{{opportunityId}}/save", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "{{opportunityId}}", "save"] }
+          }
+        },
+        {
+          "name": "Unsave Opportunity",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/{{opportunityId}}/save", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "{{opportunityId}}", "save"] }
+          }
+        },
+        {
+          "name": "Apply to Opportunity",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/{{opportunityId}}/apply", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "{{opportunityId}}", "apply"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coverLetter\": \"I am very interested in this opportunity and have relevant experience...\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('applicationId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Opportunity Applications (Owner)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/{{opportunityId}}/applications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "{{opportunityId}}", "applications"] }
+          }
+        },
+        {
+          "name": "Update Application Status",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/opportunities/applications/{{applicationId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "opportunities", "applications", "{{applicationId}}", "status"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACCEPTED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "status: PENDING | ACCEPTED | REJECTED | WITHDRAWN"
+          }
+        }
+      ]
+    },
+    {
+      "name": "💳 Subscriptions",
+      "item": [
+        {
+          "name": "Get Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/plans", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "plans"] },
+            "description": "Get available subscription plans. Public endpoint.\n\n**Plans:**\n- MONTHLY: ₦1,500 / 30 days\n- ANNUAL: ₦14,000 / 365 days"
+          }
+        },
+        {
+          "name": "Initialize Payment",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/initialize", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "initialize"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Initialize a Paystack payment for a subscription plan. Returns a checkout URL to redirect the user. plan: MONTHLY | ANNUAL"
+          }
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/verify?reference=paystack-ref",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "verify"],
+              "query": [{ "key": "reference", "value": "paystack-ref", "description": "Paystack transaction reference" }]
+            }
+          }
+        },
+        {
+          "name": "Get Current Subscription",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "me"] }
+          }
+        },
+        {
+          "name": "Get Subscription History",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/history", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "history"] }
+          }
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/cancel", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "cancel"] }
+          }
+        },
+        {
+          "name": "Get Subscription Level",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/level", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "level"] }
+          }
+        },
+        {
+          "name": "Check Subscription Level",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/level/check", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "level", "check"] }
+          }
+        },
+        {
+          "name": "Webhook (Paystack)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-paystack-signature", "value": "sha512-hmac-signature-here", "description": "HMAC-SHA512 of request body signed with Paystack secret" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/webhook", "host": ["{{baseUrl}}"], "path": ["api", "v1", "subscriptions", "webhook"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"reference\": \"paystack-ref\",\n    \"status\": \"success\",\n    \"amount\": 150000,\n    \"metadata\": { \"userId\": \"user-id\", \"plan\": \"MONTHLY\" }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Paystack webhook endpoint. HMAC-SHA512 signature required in x-paystack-signature header."
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Admin",
+      "description": "Admin panel endpoints. Requires admin authentication via /admin/auth/login.",
+      "item": [
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@corpers-connect.com\",\n  \"password\": \"SuperAdmin@123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Admin login. Default superadmin credentials are set via SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "if (json.data && json.data.accessToken) {",
+              "  pm.collectionVariables.set('adminToken', json.data.accessToken);",
+              "  console.log('Admin token saved');",
+              "}"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/dashboard", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "dashboard"] }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users?page=1&limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "status", "value": "", "disabled": true, "description": "ACTIVE | SUSPENDED" },
+                { "key": "level", "value": "", "disabled": true, "description": "OTONDO | KOPA | CORPER" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Details",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/users/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users", "{{targetUserId}}"] }
+          }
+        },
+        {
+          "name": "Suspend User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/users/{{targetUserId}}/suspend", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users", "{{targetUserId}}", "suspend"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Violation of community guidelines\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Reactivate User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/users/{{targetUserId}}/reactivate", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users", "{{targetUserId}}", "reactivate"] }
+          }
+        },
+        {
+          "name": "Verify User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/users/{{targetUserId}}/verify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users", "{{targetUserId}}", "verify"] }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/users/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users", "{{targetUserId}}"] }
+          }
+        },
+        {
+          "name": "Grant Subscription",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/users/{{targetUserId}}/subscription", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users", "{{targetUserId}}", "subscription"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"MONTHLY\",\n  \"durationDays\": 30\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Revoke Subscription",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/users/{{targetUserId}}/subscription", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "users", "{{targetUserId}}", "subscription"] }
+          }
+        },
+        {
+          "name": "List Reports",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/reports?page=1&limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "reports"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "", "disabled": true, "description": "PENDING | REVIEWED | DISMISSED" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Report",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/reports/{{reportId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "reports", "{{reportId}}"] }
+          }
+        },
+        {
+          "name": "Review Report",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/reports/{{reportId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "reports", "{{reportId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REVIEWED\",\n  \"adminNote\": \"Post removed for violating guidelines\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "List Seller Applications",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/seller-applications?page=1&limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "seller-applications"],
+              "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }, { "key": "status", "value": "", "disabled": true }]
+            }
+          }
+        },
+        {
+          "name": "Approve Seller Application",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/seller-applications/{{applicationId}}/approve", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "seller-applications", "{{applicationId}}", "approve"] }
+          }
+        },
+        {
+          "name": "Reject Seller Application",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/seller-applications/{{applicationId}}/reject", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "seller-applications", "{{applicationId}}", "reject"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Documents could not be verified\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get System Settings",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/settings", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "settings"] }
+          }
+        },
+        {
+          "name": "Update System Setting",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/settings/maintenance_mode", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "settings", "maintenance_mode"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Audit Logs",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/audit-logs?page=1&limit=20",
+              "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "audit-logs"],
+              "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }]
+            }
+          }
+        },
+        {
+          "name": "List Admins (SuperAdmin Only)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/admins", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "admins"] }
+          }
+        },
+        {
+          "name": "Create Admin (SuperAdmin Only)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/admins", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "admins"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@corpers-connect.com\",\n  \"password\": \"Admin@1234\",\n  \"name\": \"New Admin\",\n  \"role\": \"ADMIN\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('adminId', json.data.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Deactivate Admin (SuperAdmin Only)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/admins/{{adminId}}/deactivate", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "admins", "{{adminId}}", "deactivate"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🩺 Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "Server health check. Returns 200 OK if the server is running."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] } }]
+        }
+      ]
+    }
+  ]
+}

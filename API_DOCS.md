@@ -7,6 +7,36 @@
 
 ---
 
+## Related Documentation
+
+| Document | Description |
+|---|---|
+| [`POSTMAN_COLLECTION.json`](./POSTMAN_COLLECTION.json) | Importable Postman v2.1 collection — all 115+ endpoints with auto token management, pre-request scripts, and test assertions. Import directly into Postman. |
+| [`EXTERNAL_API_DOCS.md`](./EXTERNAL_API_DOCS.md) | Third-party developer guide — authentication, rate limiting, all user-facing endpoints, WebSocket events, SDK examples, and pricing tiers for API access. |
+
+### How to Import Postman Collection
+
+1. Open Postman
+2. Click **Import** (top left)
+3. Select `POSTMAN_COLLECTION.json`
+4. Set the `baseUrl` collection variable (e.g. `http://localhost:5000`)
+5. Run **🔐 Auth → Login** first — access token is auto-saved
+6. For admin endpoints, run **⚙️ Admin → Admin Login** first
+
+---
+
+## Test Coverage
+
+| Suite | Tests | Status |
+|---|---|---|
+| Unit Tests | ~230 | ✅ All pass |
+| Integration Tests | ~230 | ✅ All pass |
+| **Total** | **460** | ✅ **460/460** |
+
+Last verified: 2026-03-24
+
+---
+
 ## Authentication
 
 All protected endpoints require a Bearer token:
