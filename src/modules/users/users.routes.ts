@@ -58,12 +58,12 @@ router.delete('/:userId/follow', authenticate, usersController.unfollow);
 /** GET /api/v1/users/:userId/followers
  *  Paginated list of followers. Query: ?cursor=&limit=20
  */
-router.get('/:userId/followers', usersController.getFollowers);
+router.get('/:userId/followers', optionalAuth, usersController.getFollowers);
 
 /** GET /api/v1/users/:userId/following
  *  Paginated list of users this user follows. Query: ?cursor=&limit=20
  */
-router.get('/:userId/following', usersController.getFollowing);
+router.get('/:userId/following', optionalAuth, usersController.getFollowing);
 
 /** GET /api/v1/users/:userId/is-following
  *  Returns { isFollowing: boolean } for the authenticated user → target.
