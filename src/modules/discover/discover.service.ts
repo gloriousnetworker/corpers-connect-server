@@ -166,17 +166,31 @@ export const discoverService = {
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    const followingSet = requesterId
-      ? await prisma.follow
-          .findMany({
-            where: { followerId: requesterId, followingId: { in: items.map((u) => u.id) } },
-            select: { followingId: true },
-          })
-          .then((rs) => new Set(rs.map((r) => r.followingId)))
-      : new Set<string>();
+    const [followingSet, followsYouSet] = await Promise.all([
+      requesterId
+        ? prisma.follow
+            .findMany({
+              where: { followerId: requesterId, followingId: { in: items.map((u) => u.id) } },
+              select: { followingId: true },
+            })
+            .then((rs) => new Set(rs.map((r) => r.followingId)))
+        : Promise.resolve(new Set<string>()),
+      requesterId
+        ? prisma.follow
+            .findMany({
+              where: { followerId: { in: items.map((u) => u.id) }, followingId: requesterId },
+              select: { followerId: true },
+            })
+            .then((rs) => new Set(rs.map((r) => r.followerId)))
+        : Promise.resolve(new Set<string>()),
+    ]);
 
     return {
-      items: items.map((u) => ({ ...u, isFollowing: followingSet.has(u.id) })),
+      items: items.map((u) => ({
+        ...u,
+        isFollowing: followingSet.has(u.id),
+        followsYou: followsYouSet.has(u.id),
+      })),
       nextCursor,
       hasMore,
     };

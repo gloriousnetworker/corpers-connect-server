@@ -104,7 +104,7 @@ export const usersService = {
 
     if (requesterId) await assertNotBlocked(requesterId, targetId);
 
-    const [followersCount, followingCount, isFollowing, postsCount] = await Promise.all([
+    const [followersCount, followingCount, isFollowing, followsYou, postsCount] = await Promise.all([
       prisma.follow.count({ where: { followingId: targetId } }),
       prisma.follow.count({ where: { followerId: targetId } }),
       requesterId
@@ -112,6 +112,16 @@ export const usersService = {
             .findUnique({
               where: {
                 followerId_followingId: { followerId: requesterId, followingId: targetId },
+              },
+            })
+            .then((r) => !!r)
+        : Promise.resolve(false),
+      // Does targetId follow the requester back?
+      requesterId
+        ? prisma.follow
+            .findUnique({
+              where: {
+                followerId_followingId: { followerId: targetId, followingId: requesterId },
               },
             })
             .then((r) => !!r)
@@ -124,6 +134,7 @@ export const usersService = {
       followersCount,
       followingCount,
       isFollowing,
+      followsYou,
       postsCount,
     };
   },
