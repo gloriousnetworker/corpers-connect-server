@@ -58,15 +58,17 @@ export const usersService = {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundError('User not found');
 
-    const [followersCount, followingCount] = await Promise.all([
+    const [followersCount, followingCount, postsCount] = await Promise.all([
       prisma.follow.count({ where: { followingId: userId } }),
       prisma.follow.count({ where: { followerId: userId } }),
+      prisma.post.count({ where: { authorId: userId } }),
     ]);
 
     return {
       ...sanitiseOwnProfile(user as unknown as Record<string, unknown>),
       followersCount,
       followingCount,
+      postsCount,
     };
   },
 
@@ -102,7 +104,7 @@ export const usersService = {
 
     if (requesterId) await assertNotBlocked(requesterId, targetId);
 
-    const [followersCount, followingCount, isFollowing] = await Promise.all([
+    const [followersCount, followingCount, isFollowing, postsCount] = await Promise.all([
       prisma.follow.count({ where: { followingId: targetId } }),
       prisma.follow.count({ where: { followerId: targetId } }),
       requesterId
@@ -114,6 +116,7 @@ export const usersService = {
             })
             .then((r) => !!r)
         : Promise.resolve(false),
+      prisma.post.count({ where: { authorId: targetId } }),
     ]);
 
     return {
@@ -121,6 +124,7 @@ export const usersService = {
       followersCount,
       followingCount,
       isFollowing,
+      postsCount,
     };
   },
 
@@ -162,7 +166,7 @@ export const usersService = {
     await prisma.follow.deleteMany({ where: { followerId, followingId } });
   },
 
-  async getFollowers(userId: string, cursor?: string, limit = DEFAULT_LIMIT) {
+  async getFollowers(userId: string, requesterId?: string, cursor?: string, limit = DEFAULT_LIMIT) {
     const rows = await prisma.follow.findMany({
       where: { followingId: userId },
       take: limit + 1,
@@ -190,11 +194,25 @@ export const usersService = {
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].followerId : null;
+    const users = items.map((r) => r.follower);
 
-    return { items: items.map((r) => r.follower), nextCursor, hasMore };
+    const followingSet = requesterId
+      ? await prisma.follow
+          .findMany({
+            where: { followerId: requesterId, followingId: { in: users.map((u) => u.id) } },
+            select: { followingId: true },
+          })
+          .then((rs) => new Set(rs.map((r) => r.followingId)))
+      : new Set<string>();
+
+    return {
+      items: users.map((u) => ({ ...u, isFollowing: followingSet.has(u.id) })),
+      nextCursor,
+      hasMore,
+    };
   },
 
-  async getFollowing(userId: string, cursor?: string, limit = DEFAULT_LIMIT) {
+  async getFollowing(userId: string, requesterId?: string, cursor?: string, limit = DEFAULT_LIMIT) {
     const rows = await prisma.follow.findMany({
       where: { followerId: userId },
       take: limit + 1,
@@ -222,8 +240,22 @@ export const usersService = {
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].followingId : null;
+    const users = items.map((r) => r.following);
 
-    return { items: items.map((r) => r.following), nextCursor, hasMore };
+    const followingSet = requesterId
+      ? await prisma.follow
+          .findMany({
+            where: { followerId: requesterId, followingId: { in: users.map((u) => u.id) } },
+            select: { followingId: true },
+          })
+          .then((rs) => new Set(rs.map((r) => r.followingId)))
+      : new Set<string>();
+
+    return {
+      items: users.map((u) => ({ ...u, isFollowing: followingSet.has(u.id) })),
+      nextCursor,
+      hasMore,
+    };
   },
 
   async isFollowing(followerId: string, followingId: string) {

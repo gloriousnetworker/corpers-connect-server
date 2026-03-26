@@ -57,7 +57,19 @@ export const discoverService = {
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    return { items, nextCursor, hasMore, state: me.servingState };
+    const followingSet = await prisma.follow
+      .findMany({
+        where: { followerId: userId, followingId: { in: items.map((u) => u.id) } },
+        select: { followingId: true },
+      })
+      .then((rs) => new Set(rs.map((r) => r.followingId)));
+
+    return {
+      items: items.map((u) => ({ ...u, isFollowing: followingSet.has(u.id) })),
+      nextCursor,
+      hasMore,
+      state: me.servingState,
+    };
   },
 
   // ── Follow suggestions ─────────────────────────────────────────────────────
@@ -110,7 +122,9 @@ export const discoverService = {
       suggestions.push(...pad);
     }
 
-    return suggestions;
+    // getSuggestions already excludes people the user is following,
+    // so isFollowing is always false for every suggestion.
+    return suggestions.map((u) => ({ ...u, isFollowing: false }));
   },
 
   // ── Search (name or state code) ────────────────────────────────────────────
@@ -152,6 +166,19 @@ export const discoverService = {
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    return { items, nextCursor, hasMore };
+    const followingSet = requesterId
+      ? await prisma.follow
+          .findMany({
+            where: { followerId: requesterId, followingId: { in: items.map((u) => u.id) } },
+            select: { followingId: true },
+          })
+          .then((rs) => new Set(rs.map((r) => r.followingId)))
+      : new Set<string>();
+
+    return {
+      items: items.map((u) => ({ ...u, isFollowing: followingSet.has(u.id) })),
+      nextCursor,
+      hasMore,
+    };
   },
 };

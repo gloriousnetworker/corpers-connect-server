@@ -91,7 +91,7 @@ export const usersController = {
   async getFollowers(req: Request, res: Response, next: NextFunction) {
     try {
       const { cursor, limit } = paginationSchema.parse(req.query);
-      const data = await usersService.getFollowers(p(req.params.userId), cursor, limit);
+      const data = await usersService.getFollowers(p(req.params.userId), req.user?.id, cursor, limit);
       sendSuccess(res, data, 'Followers retrieved');
     } catch (err) {
       next(err);
@@ -101,7 +101,7 @@ export const usersController = {
   async getFollowing(req: Request, res: Response, next: NextFunction) {
     try {
       const { cursor, limit } = paginationSchema.parse(req.query);
-      const data = await usersService.getFollowing(p(req.params.userId), cursor, limit);
+      const data = await usersService.getFollowing(p(req.params.userId), req.user?.id, cursor, limit);
       sendSuccess(res, data, 'Following retrieved');
     } catch (err) {
       next(err);
