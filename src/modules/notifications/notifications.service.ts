@@ -82,15 +82,65 @@ export const notificationsService = {
       const body = notification.content ?? title;
       const url = buildDeepLinkUrl(notification.entityType, notification.entityId);
 
+      // Absolute URL for the deep link (needed by webpush.fcmOptions.link)
+      const clientUrl = (process.env.CLIENT_URL ?? '').replace(/\/$/, '');
+      const absoluteUrl = url.startsWith('http') ? url : `${clientUrl}${url}`;
+
+      // Deduplication tag — collapses multiple notifications from same source
+      const notifTag = notification.entityId
+        ? `cc-${notification.type}-${notification.entityId}`
+        : 'corpers-connect';
+
       await fcm.sendEachForMulticast({
         tokens: user.fcmTokens,
+
+        // Common fallback notification (used if webpush override is not applied)
         notification: { title, body },
+
+        // Typed data payload — available in both foreground and background handlers
         data: {
           type: notification.type,
           entityType: notification.entityType ?? '',
           entityId: notification.entityId ?? '',
           actorId: notification.actorId ?? '',
           url,
+        },
+
+        // Web-push specific config — overrides root notification on browsers/PWA
+        webpush: {
+          notification: {
+            title,
+            body,
+            // Absolute URLs required for OS notification center to fetch the icon
+            icon:  `${clientUrl}/icons/icon-192x192.png`,
+            badge: `${clientUrl}/icons/icon-72x72.png`,
+            // Keep visible until user explicitly dismisses (don't auto-dismiss)
+            requireInteraction: true,
+            // Replace previous notification from the same source instead of stacking
+            tag: notifTag,
+            // New message in the same convo should still ring/vibrate
+            renotify: true,
+            // Vibration pattern: buzz 200ms — pause 100ms — buzz 200ms
+            vibrate: [200, 100, 200],
+            // Pass data so notificationclick handler can route correctly
+            data: {
+              url,
+              type: notification.type,
+              entityType: notification.entityType ?? '',
+              entityId: notification.entityId ?? '',
+              actorId: notification.actorId ?? '',
+            },
+          },
+          // fcmOptions.link makes the browser open the URL on tap automatically,
+          // without needing our custom notificationclick handler
+          fcmOptions: {
+            link: absoluteUrl || clientUrl || '/',
+          },
+          // HTTP headers for the web push protocol
+          headers: {
+            // Urgency: ensure OS delivers immediately (not batched/throttled)
+            Urgency: 'high',
+          },
         },
       });
     } catch {
