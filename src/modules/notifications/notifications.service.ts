@@ -62,7 +62,14 @@ export const notificationsService = {
 
   async sendPush(
     recipientId: string,
-    notification: { type: NotificationType; content?: string | null; actor?: { firstName: string; lastName: string } | null },
+    notification: {
+      type: NotificationType;
+      content?: string | null;
+      entityType?: string | null;
+      entityId?: string | null;
+      actorId?: string | null;
+      actor?: { firstName: string; lastName: string } | null;
+    },
   ) {
     try {
       const user = await prisma.user.findUnique({
@@ -73,12 +80,17 @@ export const notificationsService = {
 
       const title = buildPushTitle(notification);
       const body = notification.content ?? title;
+      const url = buildDeepLinkUrl(notification.entityType, notification.entityId);
 
       await fcm.sendEachForMulticast({
         tokens: user.fcmTokens,
         notification: { title, body },
         data: {
           type: notification.type,
+          entityType: notification.entityType ?? '',
+          entityId: notification.entityId ?? '',
+          actorId: notification.actorId ?? '',
+          url,
         },
       });
     } catch {
@@ -155,6 +167,12 @@ export const notificationsService = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function buildDeepLinkUrl(entityType?: string | null, entityId?: string | null): string {
+  if (entityType === 'Post' && entityId) return `/post/${entityId}`;
+  if (entityType === 'Conversation' && entityId) return `/?conv=${entityId}`;
+  return '/';
+}
 
 function buildPushTitle(notification: {
   type: NotificationType;

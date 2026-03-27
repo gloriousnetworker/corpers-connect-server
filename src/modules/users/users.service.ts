@@ -170,6 +170,7 @@ export const usersService = {
       type: 'FOLLOW',
       entityType: 'User',
       entityId: followerId,
+      content: 'started following you',
     });
   },
 

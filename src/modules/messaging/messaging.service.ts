@@ -283,6 +283,9 @@ export const messagingService = {
       where: { conversationId, userId: { not: userId } },
       select: { userId: true },
     });
+    const dmContent = dto.content
+      ? (dto.content.length > 60 ? dto.content.slice(0, 60) + '…' : dto.content)
+      : 'sent you a message';
     for (const p of otherParticipants) {
       void notificationsService.create({
         recipientId: p.userId,
@@ -290,6 +293,7 @@ export const messagingService = {
         type: 'DM_RECEIVED',
         entityType: 'Conversation',
         entityId: conversationId,
+        content: dmContent,
       });
     }
 

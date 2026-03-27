@@ -264,6 +264,7 @@ export const postsService = {
       type: 'POST_LIKE',
       entityType: 'Post',
       entityId: postId,
+      content: 'liked your post',
     });
   },
 
@@ -325,8 +326,9 @@ export const postsService = {
           recipientId: parent.authorId,
           actorId: userId,
           type: 'COMMENT_REPLY',
-          entityType: 'Comment',
-          entityId: comment.id,
+          entityType: 'Post',
+          entityId: postId,
+          content: 'replied to your comment',
         });
       }
     } else {
@@ -337,6 +339,7 @@ export const postsService = {
         type: 'POST_COMMENT',
         entityType: 'Post',
         entityId: postId,
+        content: 'commented on your post',
       });
     }
 
