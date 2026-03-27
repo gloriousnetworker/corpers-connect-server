@@ -44,5 +44,13 @@ export const addParticipantsSchema = z.object({
   userIds: z.array(z.string()).min(1).max(20),
 });
 
+export const messageReactionSchema = z.object({
+  emoji: z.string().min(1).max(10),
+});
+
+export const pinMessageSchema = z.object({
+  isPinned: z.boolean(),
+});
+
 export type CreateConversationDto = z.infer<typeof createConversationSchema>;
 export type SendMessageDto = z.infer<typeof sendMessageSchema>;

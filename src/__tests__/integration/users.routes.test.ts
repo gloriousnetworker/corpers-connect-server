@@ -421,3 +421,47 @@ describe('GET /discover/search', () => {
     expect(res.body.data.items.some((u: { firstName: string }) => u.firstName === 'Iniubong')).toBe(true);
   });
 });
+
+// ── Delete Account ────────────────────────────────────────────────────────────
+
+describe('DELETE /users/me', () => {
+  it('deactivates the account and returns 200', async () => {
+    // Create a fresh user to delete so we don't break other tests
+    const hash = await (await import('bcrypt')).hash('Test@1234', 10);
+    const ts = Date.now();
+    const user = await prisma.user.create({
+      data: {
+        email: `delete-me-${ts}@example.com`,
+        passwordHash: hash,
+        firstName: 'Delete',
+        lastName: 'Me',
+        stateCode: `LA/24A/DEL${ts}`,
+        servingState: 'Lagos',
+        batch: 'Batch A',
+        isActive: true,
+        isVerified: true,
+      },
+    });
+    const jwt = await import('jsonwebtoken');
+    const { env } = await import('../../config/env');
+    const token = jwt.sign(
+      { sub: user.id, email: user.email, role: 'USER', jti: `del-${ts}` },
+      env.JWT_ACCESS_SECRET,
+      { expiresIn: '1h' },
+    );
+
+    const res = await request(app)
+      .delete(`${USERS}/me`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+
+    const updated = await prisma.user.findUnique({ where: { id: user.id } });
+    expect(updated?.isActive).toBe(false);
+  });
+
+  it('returns 401 without token', async () => {
+    const res = await request(app).delete(`${USERS}/me`);
+    expect(res.status).toBe(401);
+  });
+});

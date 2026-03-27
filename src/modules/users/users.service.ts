@@ -343,4 +343,23 @@ export const usersService = {
       data: { fcmTokens: user.fcmTokens.filter((t) => t !== token) },
     });
   },
+
+  async deleteAccount(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundError('User not found');
+    // Soft-delete: deactivate the account so content can be retained for moderation
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: false,
+        email: `deleted_${userId}@deleted.local`,
+        passwordHash: '',
+        firstName: 'Deleted',
+        lastName: 'User',
+        profilePicture: null,
+        bio: null,
+        fcmTokens: [],
+      },
+    });
+  },
 };

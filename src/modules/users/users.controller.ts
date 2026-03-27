@@ -204,4 +204,13 @@ export const usersController = {
       next(err);
     }
   },
+
+  async deleteAccount(req: Request, res: Response, next: NextFunction) {
+    try {
+      await usersService.deleteAccount(req.user!.id);
+      sendSuccess(res, null, 'Account deleted');
+    } catch (err) {
+      next(err);
+    }
+  },
 };

@@ -346,3 +346,130 @@ describe('PATCH /conversations/:id/settings', () => {
     expect(res.body.data.isArchived).toBe(true);
   });
 });
+
+// ── Message Reactions & Pin ───────────────────────────────────────────────────
+
+describe('Message reactions and pin endpoints', () => {
+  let userA: { id: string };
+  let userB: { id: string };
+  let tokenA: string;
+  let convId: string;
+  let msgId: string;
+
+  beforeAll(async () => {
+    [userA, userB] = await Promise.all([createUser(), createUser()]);
+    tokenA = makeToken(userA.id);
+
+    // Create a DM conversation
+    const convRes = await request(app)
+      .post('/api/v1/conversations')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ type: 'DM', participantId: userB.id });
+    convId = convRes.body.data.id;
+
+    // Send a message
+    const msgRes = await request(app)
+      .post(`/api/v1/conversations/${convId}/messages`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ content: 'Hello!' });
+    msgId = msgRes.body.data.id;
+  });
+
+  it('POST reactions — adds emoji reaction', async () => {
+    const res = await request(app)
+      .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ emoji: '👍' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.reactions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ emoji: '👍' })]),
+    );
+  });
+
+  it('POST reactions — idempotent (upsert same emoji twice)', async () => {
+    await request(app)
+      .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ emoji: '❤️' });
+
+    const res = await request(app)
+      .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ emoji: '❤️' });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('DELETE reactions — removes emoji reaction', async () => {
+    // First add
+    await request(app)
+      .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ emoji: '😂' });
+
+    // Then remove
+    const res = await request(app)
+      .delete(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ emoji: '😂' });
+
+    expect(res.status).toBe(200);
+    const remaining = res.body.data.reactions ?? [];
+    const removed = remaining.filter((r: { emoji: string; userId: string }) => r.emoji === '😂' && r.userId === userA.id);
+    expect(removed).toHaveLength(0);
+  });
+
+  it('POST reactions — 401 without token', async () => {
+    const res = await request(app)
+      .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .send({ emoji: '👍' });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST reactions — 400 without emoji', async () => {
+    const res = await request(app)
+      .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('PATCH pin — pins a message', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/conversations/${convId}/messages/${msgId}/pin`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ isPinned: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.isPinned).toBe(true);
+  });
+
+  it('PATCH pin — unpins a message', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/conversations/${convId}/messages/${msgId}/pin`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ isPinned: false });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.isPinned).toBe(false);
+  });
+
+  it('PATCH pin — 400 without isPinned field', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/conversations/${convId}/messages/${msgId}/pin`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('POST reactions — 403 when not a participant', async () => {
+    const outsider = await createUser();
+    const outsiderToken = makeToken(outsider.id);
+    const res = await request(app)
+      .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
+      .set('Authorization', `Bearer ${outsiderToken}`)
+      .send({ emoji: '👍' });
+    expect(res.status).toBe(403);
+  });
+});

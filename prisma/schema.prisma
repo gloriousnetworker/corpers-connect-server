@@ -237,6 +237,7 @@ model User {
   following             Follow[]               @relation("follower")
   followers             Follow[]               @relation("following")
   conversationParticipants ConversationParticipant[]
+  messageReactions      MessageReaction[]
   callsAsInitiator      CallLog[]              @relation("caller")
   callsAsReceiver       CallLog[]              @relation("receiver")
   sellerApplication     SellerApplication?
@@ -465,20 +466,36 @@ model Message {
   replyToId      String?
   isEdited       Boolean     @default(false)
   isDeleted      Boolean     @default(false)
+  isPinned       Boolean     @default(false)
   deletedFor     String[]    @default([])
   deliveredAt    DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  replyTo      Message?      @relation("MessageReplies", fields: [replyToId], references: [id])
-  replies      Message[]     @relation("MessageReplies")
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?         @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]        @relation("MessageReplies")
   reads        MessageRead[]
+  reactions    MessageReaction[]
 
   @@index([conversationId])
   @@index([senderId])
   @@index([createdAt(sort: Desc)])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 model MessageRead {

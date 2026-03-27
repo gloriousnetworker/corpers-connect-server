@@ -29,6 +29,10 @@ jest.mock('../../config/prisma', () => ({
     messageRead: {
       createMany: jest.fn(),
     },
+    messageReaction: {
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
+    },
     user: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -259,5 +263,112 @@ describe('messagingService.markMessagesRead', () => {
     const result = await messagingService.markMessagesRead(USER_A, CONV_ID, ['m1', 'm2']);
     expect(result).toEqual({ read: 2 });
     expect(mockPrisma.messageRead.createMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Reactions ─────────────────────────────────────────────────────────────────
+
+describe('messagingService.reactToMessage', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('upserts a reaction and returns updated message', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.message.findUnique as jest.Mock)
+      .mockResolvedValueOnce(mockMessage)  // assertion check
+      .mockResolvedValueOnce({ ...mockMessage, reactions: [{ id: 'r1', emoji: '👍', userId: USER_A }] }); // return value
+    (mockPrisma.messageReaction.upsert as jest.Mock).mockResolvedValue({});
+
+    const result = await messagingService.reactToMessage(USER_A, CONV_ID, MSG_ID, '👍');
+    expect(mockPrisma.messageReaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ emoji: '👍', userId: USER_A }) }),
+    );
+    expect(result).toBeDefined();
+  });
+
+  it('throws 404 if message not in this conversation', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue({ ...mockMessage, conversationId: 'other-conv' });
+
+    await expect(
+      messagingService.reactToMessage(USER_A, CONV_ID, MSG_ID, '👍'),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 400 if message is deleted', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue({ ...mockMessage, isDeleted: true });
+
+    await expect(
+      messagingService.reactToMessage(USER_A, CONV_ID, MSG_ID, '👍'),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('throws 403 if user is not a participant', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      messagingService.reactToMessage(USER_A, CONV_ID, MSG_ID, '👍'),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe('messagingService.removeMessageReaction', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('deletes the reaction and returns updated message', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.messageReaction.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue({ ...mockMessage, reactions: [] });
+
+    const result = await messagingService.removeMessageReaction(USER_A, CONV_ID, MSG_ID, '👍');
+    expect(mockPrisma.messageReaction.deleteMany).toHaveBeenCalledWith({
+      where: { messageId: MSG_ID, userId: USER_A, emoji: '👍' },
+    });
+    expect(result).toBeDefined();
+  });
+});
+
+// ── Pin Message ───────────────────────────────────────────────────────────────
+
+describe('messagingService.pinMessage', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('sets isPinned to true on a message', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue(mockMessage);
+    (mockPrisma.message.update as jest.Mock).mockResolvedValue({ ...mockMessage, isPinned: true });
+
+    const result = await messagingService.pinMessage(USER_A, CONV_ID, MSG_ID, true);
+    expect(mockPrisma.message.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { isPinned: true } }),
+    );
+    expect(result).toMatchObject({ isPinned: true });
+  });
+
+  it('sets isPinned to false (unpin)', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue({ ...mockMessage, isPinned: true });
+    (mockPrisma.message.update as jest.Mock).mockResolvedValue({ ...mockMessage, isPinned: false });
+
+    const result = await messagingService.pinMessage(USER_A, CONV_ID, MSG_ID, false);
+    expect(result).toMatchObject({ isPinned: false });
+  });
+
+  it('throws 404 if message is in a different conversation', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue({ ...mockMessage, conversationId: 'other' });
+
+    await expect(
+      messagingService.pinMessage(USER_A, CONV_ID, MSG_ID, true),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 400 if message is deleted', async () => {
+    (mockPrisma.conversationParticipant.findUnique as jest.Mock).mockResolvedValue(mockParticipant);
+    (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue({ ...mockMessage, isDeleted: true });
+
+    await expect(
+      messagingService.pinMessage(USER_A, CONV_ID, MSG_ID, true),
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 });

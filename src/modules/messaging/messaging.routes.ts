@@ -81,4 +81,19 @@ router.delete('/:conversationId/messages/:messageId', messagingController.delete
  */
 router.post('/:conversationId/read', messagingController.markRead);
 
+/** POST /api/v1/conversations/:conversationId/messages/:messageId/reactions
+ *  Add an emoji reaction to a message. Body: { emoji }
+ */
+router.post('/:conversationId/messages/:messageId/reactions', messagingController.reactToMessage);
+
+/** DELETE /api/v1/conversations/:conversationId/messages/:messageId/reactions
+ *  Remove an emoji reaction from a message. Body: { emoji }
+ */
+router.delete('/:conversationId/messages/:messageId/reactions', messagingController.removeMessageReaction);
+
+/** PATCH /api/v1/conversations/:conversationId/messages/:messageId/pin
+ *  Pin or unpin a message. Body: { isPinned: boolean }
+ */
+router.patch('/:conversationId/messages/:messageId/pin', messagingController.pinMessage);
+
 export default router;

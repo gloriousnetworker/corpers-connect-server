@@ -113,4 +113,9 @@ router.post('/me/fcm-token', authenticate, usersController.addFcmToken);
  */
 router.delete('/me/fcm-token', authenticate, usersController.removeFcmToken);
 
+/** DELETE /api/v1/users/me
+ *  Soft-delete the authenticated user's account (deactivates, anonymises data).
+ */
+router.delete('/me', authenticate, usersController.deleteAccount);
+
 export default router;

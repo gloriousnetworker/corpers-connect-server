@@ -9,6 +9,8 @@ import {
   sendMessageSchema,
   editMessageSchema,
   addParticipantsSchema,
+  messageReactionSchema,
+  pinMessageSchema,
 } from './messaging.validation';
 import { paginationSchema } from '../posts/posts.validation';
 
@@ -197,6 +199,55 @@ export const messagingController = {
         messageIds,
       );
       sendSuccess(res, data, 'Messages marked as read');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Reactions ─────────────────────────────────────────────────────────────────
+
+  async reactToMessage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { emoji } = messageReactionSchema.parse(req.body);
+      const conversationId = p(req.params.conversationId);
+      const messageId = p(req.params.messageId);
+      const data = await messagingService.reactToMessage(req.user!.id, conversationId, messageId, emoji);
+      try {
+        getIO().to(`conversation:${conversationId}`).emit('message:react', { messageId, conversationId, message: data });
+      } catch { /* non-fatal */ }
+      sendSuccess(res, data, 'Reaction added');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async removeMessageReaction(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { emoji } = messageReactionSchema.parse(req.body);
+      const conversationId = p(req.params.conversationId);
+      const messageId = p(req.params.messageId);
+      const data = await messagingService.removeMessageReaction(req.user!.id, conversationId, messageId, emoji);
+      try {
+        getIO().to(`conversation:${conversationId}`).emit('message:react', { messageId, conversationId, message: data });
+      } catch { /* non-fatal */ }
+      sendSuccess(res, data, 'Reaction removed');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Pin ───────────────────────────────────────────────────────────────────────
+
+  async pinMessage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { isPinned } = pinMessageSchema.parse(req.body);
+      const conversationId = p(req.params.conversationId);
+      const messageId = p(req.params.messageId);
+      const data = await messagingService.pinMessage(req.user!.id, conversationId, messageId, isPinned);
+      try {
+        getIO().to(`conversation:${conversationId}`).emit('message:pinned', { messageId, conversationId, isPinned, message: data });
+      } catch { /* non-fatal */ }
+      sendSuccess(res, data, isPinned ? 'Message pinned' : 'Message unpinned');
     } catch (err) {
       next(err);
     }

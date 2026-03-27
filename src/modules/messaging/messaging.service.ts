@@ -385,6 +385,65 @@ export const messagingService = {
     return { read: messageIds.length };
   },
 
+  // ── Reactions ─────────────────────────────────────────────────────────────────
+
+  async reactToMessage(userId: string, conversationId: string, messageId: string, emoji: string) {
+    await assertParticipant(conversationId, userId);
+
+    const message = await prisma.message.findUnique({ where: { id: messageId } });
+    if (!message || message.conversationId !== conversationId) throw new NotFoundError('Message not found');
+    if (message.isDeleted) throw new BadRequestError('Cannot react to a deleted message');
+
+    await prisma.messageReaction.upsert({
+      where: { messageId_userId_emoji: { messageId, userId, emoji } },
+      create: { messageId, userId, emoji },
+      update: {},
+    });
+
+    return prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        sender: { select: SENDER_SELECT },
+        reactions: { include: { user: { select: SENDER_SELECT } } },
+      },
+    });
+  },
+
+  async removeMessageReaction(userId: string, conversationId: string, messageId: string, emoji: string) {
+    await assertParticipant(conversationId, userId);
+
+    await prisma.messageReaction.deleteMany({
+      where: { messageId, userId, emoji },
+    });
+
+    return prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        sender: { select: SENDER_SELECT },
+        reactions: { include: { user: { select: SENDER_SELECT } } },
+      },
+    });
+  },
+
+  // ── Pin Message ───────────────────────────────────────────────────────────────
+
+  async pinMessage(userId: string, conversationId: string, messageId: string, isPinned: boolean) {
+    await assertParticipant(conversationId, userId);
+
+    const message = await prisma.message.findUnique({ where: { id: messageId } });
+    if (!message || message.conversationId !== conversationId) throw new NotFoundError('Message not found');
+    if (message.isDeleted) throw new BadRequestError('Cannot pin a deleted message');
+
+    return prisma.message.update({
+      where: { id: messageId },
+      data: { isPinned },
+      include: {
+        sender: { select: SENDER_SELECT },
+        reactions: { include: { user: { select: SENDER_SELECT } } },
+      },
+    });
+  },
+
   // ── Online Presence ───────────────────────────────────────────────────────────
 
   async setOnline(userId: string) {
