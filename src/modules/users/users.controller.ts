@@ -181,11 +181,11 @@ export const usersController = {
 
   async addFcmToken(req: Request, res: Response, next: NextFunction) {
     try {
-      const { token } = req.body;
-      if (!token || typeof token !== 'string') {
-        return res.status(422).json({ status: 'error', message: 'token is required' });
+      const { fcmToken } = req.body;
+      if (!fcmToken || typeof fcmToken !== 'string') {
+        return res.status(422).json({ status: 'error', message: 'fcmToken is required' });
       }
-      await usersService.addFcmToken(req.user!.id, token);
+      await usersService.addFcmToken(req.user!.id, fcmToken);
       sendSuccess(res, null, 'FCM token registered');
     } catch (err) {
       next(err);
@@ -194,11 +194,11 @@ export const usersController = {
 
   async removeFcmToken(req: Request, res: Response, next: NextFunction) {
     try {
-      const { token } = req.body;
-      if (!token || typeof token !== 'string') {
-        return res.status(422).json({ status: 'error', message: 'token is required' });
+      const { fcmToken } = req.body;
+      if (!fcmToken || typeof fcmToken !== 'string') {
+        return res.status(422).json({ status: 'error', message: 'fcmToken is required' });
       }
-      await usersService.removeFcmToken(req.user!.id, token);
+      await usersService.removeFcmToken(req.user!.id, fcmToken);
       sendSuccess(res, null, 'FCM token removed');
     } catch (err) {
       next(err);

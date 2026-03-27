@@ -91,7 +91,7 @@ export const notificationsService = {
         ? `cc-${notification.type}-${notification.entityId}`
         : 'corpers-connect';
 
-      await fcm.sendEachForMulticast({
+      const batchResponse = await fcm.sendEachForMulticast({
         tokens: user.fcmTokens,
 
         // Common fallback notification (used if webpush override is not applied)
@@ -143,8 +143,32 @@ export const notificationsService = {
           },
         },
       });
-    } catch {
-      // Push failures are non-critical; log and continue
+
+      // Prune tokens that FCM has invalidated (unregistered or expired)
+      const staleTokens: string[] = [];
+      batchResponse.responses.forEach((resp, idx) => {
+        if (!resp.success && resp.error) {
+          const code = resp.error.code;
+          if (
+            code === 'messaging/invalid-registration-token' ||
+            code === 'messaging/registration-token-not-registered'
+          ) {
+            staleTokens.push(user.fcmTokens[idx]);
+          } else {
+            console.warn('[FCM] sendPush error for token', idx, resp.error.code, resp.error.message);
+          }
+        }
+      });
+
+      if (staleTokens.length > 0) {
+        const remaining = user.fcmTokens.filter((t) => !staleTokens.includes(t));
+        await prisma.user.update({
+          where: { id: recipientId },
+          data: { fcmTokens: remaining },
+        });
+      }
+    } catch (err) {
+      console.error('[FCM] sendPush failed:', err);
     }
   },
 
