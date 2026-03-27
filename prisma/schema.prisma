@@ -238,6 +238,7 @@ model User {
   followers             Follow[]               @relation("following")
   conversationParticipants ConversationParticipant[]
   messageReactions      MessageReaction[]
+  commentReactions      CommentReaction[]
   callsAsInitiator      CallLog[]              @relation("caller")
   callsAsReceiver       CallLog[]              @relation("receiver")
   sellerApplication     SellerApplication?
@@ -355,13 +356,28 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies Comment[] @relation("CommentReplies")
-  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post      Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent    Comment?          @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[]         @relation("CommentReplies")
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions CommentReaction[]
 
   @@index([postId])
   @@index([parentId])
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])
+  @@index([commentId])
 }
 
 model Bookmark {

@@ -74,6 +74,18 @@ router.delete('/:postId/comments/:commentId', authenticate, postsController.dele
  */
 router.get('/:postId/comments', postsController.getComments);
 
+// ── Comment Reactions ─────────────────────────────────────────────────────────
+
+/** POST /api/v1/posts/:postId/comments/:commentId/reactions
+ *  Add an emoji reaction to a comment. Body: { emoji }
+ */
+router.post('/:postId/comments/:commentId/reactions', authenticate, postsController.reactToComment);
+
+/** DELETE /api/v1/posts/:postId/comments/:commentId/reactions
+ *  Remove an emoji reaction from a comment. Body: { emoji }
+ */
+router.delete('/:postId/comments/:commentId/reactions', authenticate, postsController.removeCommentReaction);
+
 // ── Bookmarks ─────────────────────────────────────────────────────────────────
 
 /** POST /api/v1/posts/:postId/bookmark

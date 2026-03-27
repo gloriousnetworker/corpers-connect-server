@@ -6,6 +6,7 @@ import {
   updatePostSchema,
   reactSchema,
   addCommentSchema,
+  commentReactionSchema,
   reportSchema,
   paginationSchema,
 } from './posts.validation';
@@ -139,6 +140,38 @@ export const postsController = {
       const { cursor, limit } = paginationSchema.parse(req.query);
       const data = await postsService.getComments(p(req.params.postId), cursor, limit);
       sendSuccess(res, data, 'Comments retrieved');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Comment Reactions ─────────────────────────────────────────────────────────
+
+  async reactToComment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { emoji } = commentReactionSchema.parse(req.body);
+      const data = await postsService.reactToComment(
+        req.user!.id,
+        p(req.params.postId),
+        p(req.params.commentId),
+        emoji,
+      );
+      sendSuccess(res, data, 'Reaction added');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async removeCommentReaction(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { emoji } = commentReactionSchema.parse(req.body);
+      const data = await postsService.removeCommentReaction(
+        req.user!.id,
+        p(req.params.postId),
+        p(req.params.commentId),
+        emoji,
+      );
+      sendSuccess(res, data, 'Reaction removed');
     } catch (err) {
       next(err);
     }

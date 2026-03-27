@@ -312,6 +312,7 @@ export const postsService = {
       data: { postId, authorId: userId, content, parentId },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        reactions: { select: { id: true, userId: true, emoji: true } },
         _count: { select: { replies: true } },
       },
     });
@@ -365,13 +366,13 @@ export const postsService = {
       orderBy: { createdAt: 'asc' },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        reactions: { select: { id: true, userId: true, emoji: true } },
         replies: {
           take: 3,
           orderBy: { createdAt: 'asc' },
           include: {
-            author: {
-              select: { id: true, firstName: true, lastName: true, profilePicture: true },
-            },
+            author: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+            reactions: { select: { id: true, userId: true, emoji: true } },
           },
         },
         _count: { select: { replies: true } },
@@ -381,6 +382,44 @@ export const postsService = {
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
+  },
+
+  // ── Comment Reactions ─────────────────────────────────────────────────────────
+
+  async reactToComment(userId: string, postId: string, commentId: string, emoji: string) {
+    const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment || comment.postId !== postId) throw new NotFoundError('Comment not found');
+
+    await prisma.commentReaction.upsert({
+      where: { commentId_userId_emoji: { commentId, userId, emoji } },
+      create: { commentId, userId, emoji },
+      update: {},
+    });
+
+    return prisma.comment.findUnique({
+      where: { id: commentId },
+      include: {
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        reactions: { select: { id: true, userId: true, emoji: true } },
+        _count: { select: { replies: true } },
+      },
+    });
+  },
+
+  async removeCommentReaction(userId: string, postId: string, commentId: string, emoji: string) {
+    const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment || comment.postId !== postId) throw new NotFoundError('Comment not found');
+
+    await prisma.commentReaction.deleteMany({ where: { commentId, userId, emoji } });
+
+    return prisma.comment.findUnique({
+      where: { id: commentId },
+      include: {
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        reactions: { select: { id: true, userId: true, emoji: true } },
+        _count: { select: { replies: true } },
+      },
+    });
   },
 
   // ── Bookmarks ────────────────────────────────────────────────────────────────

@@ -28,6 +28,10 @@ export const addCommentSchema = z.object({
   parentId: z.string().optional(),
 });
 
+export const commentReactionSchema = z.object({
+  emoji: z.string().min(1).max(10),
+});
+
 export const reportSchema = z.object({
   reason: z.string().min(5, 'Reason must be at least 5 characters').max(200),
   details: z.string().max(500).optional(),
