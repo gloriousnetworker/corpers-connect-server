@@ -94,51 +94,30 @@ export const notificationsService = {
       const batchResponse = await fcm.sendEachForMulticast({
         tokens: user.fcmTokens,
 
-        // Common fallback notification (used if webpush override is not applied)
-        notification: { title, body },
-
-        // Typed data payload — available in both foreground and background handlers
+        // Data-only payload — no root `notification` field.
+        // This ensures onBackgroundMessage() in the service worker is the SOLE
+        // notification renderer on every platform (iOS, Android, desktop Chrome).
+        // Sending a notification payload causes the browser to auto-show AND
+        // onBackgroundMessage to also fire, producing duplicates.
         data: {
-          type: notification.type,
+          title,
+          body,
+          type:       notification.type,
           entityType: notification.entityType ?? '',
-          entityId: notification.entityId ?? '',
-          actorId: notification.actorId ?? '',
+          entityId:   notification.entityId   ?? '',
+          actorId:    notification.actorId    ?? '',
           url,
+          tag:        notifTag,
+          icon:       `${clientUrl}/icons/icon-192x192.png`,
+          badge:      `${clientUrl}/icons/icon-72x72.png`,
         },
 
-        // Web-push specific config — overrides root notification on browsers/PWA
         webpush: {
-          notification: {
-            title,
-            body,
-            // Absolute URLs required for OS notification center to fetch the icon
-            icon:  `${clientUrl}/icons/icon-192x192.png`,
-            badge: `${clientUrl}/icons/icon-72x72.png`,
-            // Keep visible until user explicitly dismisses (don't auto-dismiss)
-            requireInteraction: true,
-            // Replace previous notification from the same source instead of stacking
-            tag: notifTag,
-            // New message in the same convo should still ring/vibrate
-            renotify: true,
-            // Vibration pattern: buzz 200ms — pause 100ms — buzz 200ms
-            vibrate: [200, 100, 200],
-            // Pass data so notificationclick handler can route correctly
-            data: {
-              url,
-              type: notification.type,
-              entityType: notification.entityType ?? '',
-              entityId: notification.entityId ?? '',
-              actorId: notification.actorId ?? '',
-            },
-          },
-          // fcmOptions.link makes the browser open the URL on tap automatically,
-          // without needing our custom notificationclick handler
+          // No webpush.notification — keep it data-only so onBackgroundMessage fires
           fcmOptions: {
             link: absoluteUrl || clientUrl || '/',
           },
-          // HTTP headers for the web push protocol
           headers: {
-            // Urgency: ensure OS delivers immediately (not batched/throttled)
             Urgency: 'high',
           },
         },
