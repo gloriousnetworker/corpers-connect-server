@@ -20,6 +20,7 @@ const SENDER_SELECT = {
   lastName: true,
   profilePicture: true,
   isVerified: true,
+  lastSeen: true,
 } as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -456,6 +457,10 @@ export const messagingService = {
 
   async setOffline(userId: string) {
     await redis.del(`${ONLINE_PREFIX}${userId}`);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lastSeen: new Date() },
+    });
   },
 
   async isOnline(userId: string): Promise<boolean> {
