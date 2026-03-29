@@ -317,4 +317,101 @@ describe('opportunitiesService.updateApplicationStatus', () => {
       opportunitiesService.updateApplicationStatus(APP_ID, 'stranger', { status: 'REVIEWED' }),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
+
+  it('throws 404 when application does not exist', async () => {
+    (mockPrisma.opportunityApplication.findUnique as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      opportunitiesService.updateApplicationStatus(APP_ID, AUTHOR_ID, { status: 'REVIEWED' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+// ── unsaveOpportunity ─────────────────────────────────────────────────────────
+
+describe('opportunitiesService.unsaveOpportunity', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('removes the saved record', async () => {
+    (mockPrisma.savedOpportunity.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+    await opportunitiesService.unsaveOpportunity('user-1', OPP_ID);
+    expect(mockPrisma.savedOpportunity.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', opportunityId: OPP_ID },
+    });
+  });
+});
+
+// ── getSavedOpportunities ─────────────────────────────────────────────────────
+
+describe('opportunitiesService.getSavedOpportunities', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns paginated saved opportunities', async () => {
+    (mockPrisma.savedOpportunity.findMany as jest.Mock).mockResolvedValue([
+      { opportunity: mockOpportunity },
+    ]);
+
+    const result = await opportunitiesService.getSavedOpportunities('user-1', { limit: 20 });
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('detects hasMore correctly', async () => {
+    const rows = [
+      { opportunity: mockOpportunity },
+      { opportunity: mockOpportunity },
+      { opportunity: mockOpportunity },
+    ];
+    (mockPrisma.savedOpportunity.findMany as jest.Mock).mockResolvedValue(rows);
+
+    const result = await opportunitiesService.getSavedOpportunities('user-1', { limit: 2 });
+    expect(result.hasMore).toBe(true);
+    expect(result.items).toHaveLength(2);
+  });
+});
+
+// ── getMyApplications ─────────────────────────────────────────────────────────
+
+describe('opportunitiesService.getMyApplications', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns paginated applications for the requesting user', async () => {
+    (mockPrisma.opportunityApplication.findMany as jest.Mock).mockResolvedValue([mockApplication]);
+
+    const result = await opportunitiesService.getMyApplications(APPLICANT_ID, { limit: 20 });
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items[0].id).toBe(APP_ID);
+  });
+
+  it('returns empty list when user has no applications', async () => {
+    (mockPrisma.opportunityApplication.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await opportunitiesService.getMyApplications(APPLICANT_ID, { limit: 20 });
+    expect(result.items).toHaveLength(0);
+    expect(result.hasMore).toBe(false);
+  });
+});
+
+// ── getMyOpportunities ────────────────────────────────────────────────────────
+
+describe('opportunitiesService.getMyOpportunities', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns paginated opportunities authored by the user', async () => {
+    (mockPrisma.opportunity.findMany as jest.Mock).mockResolvedValue([mockOpportunity]);
+
+    const result = await opportunitiesService.getMyOpportunities(AUTHOR_ID, { limit: 20 });
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items[0].id).toBe(OPP_ID);
+  });
+
+  it('detects hasMore when rows exceed limit', async () => {
+    const rows = Array(3).fill(mockOpportunity);
+    (mockPrisma.opportunity.findMany as jest.Mock).mockResolvedValue(rows);
+
+    const result = await opportunitiesService.getMyOpportunities(AUTHOR_ID, { limit: 2 });
+    expect(result.hasMore).toBe(true);
+    expect(result.items).toHaveLength(2);
+  });
 });
