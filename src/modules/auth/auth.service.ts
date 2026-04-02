@@ -7,6 +7,7 @@ import { env } from '../../config/env';
 import { jwtService } from '../../shared/services/jwt.service';
 import { otpService } from '../../shared/services/otp.service';
 import { addEmailJob } from '../../jobs';
+import { emailService } from '../../shared/services/email.service';
 import { nyscService } from '../nysc/nysc.service';
 import {
   BadRequestError,
@@ -57,19 +58,15 @@ export const authService = {
       JSON.stringify({ passwordHash, corper }),
     );
 
-    // Generate and send OTP
+    // Generate and send OTP directly (synchronous — OTPs are time-sensitive)
     const otp = otpService.generate();
     await otpService.store(`reg:${corper.email}`, otp);
-
-    // Enqueue OTP email — async delivery with auto-retry (3 attempts, exponential backoff)
-    void addEmailJob({ type: 'SEND_OTP', to: corper.email, name: corper.firstName, otp, purpose: 'registration' });
+    await emailService.sendOTP(corper.email, corper.firstName, otp, 'registration');
 
     return {
       email: corper.email,
       maskedEmail: maskEmail(corper.email),
       message: `Verification code sent to ${maskEmail(corper.email)}`,
-      // Only expose OTP when explicitly enabled (e.g. Railway SMTP is blocked)
-      ...(env.EXPOSE_DEV_OTP && { devOtp: otp }),
     };
   },
 
@@ -234,13 +231,10 @@ export const authService = {
 
     const otp = otpService.generate();
     await otpService.store(`reset:${email}`, otp);
-
-    // Enqueue reset OTP email asynchronously
-    void addEmailJob({ type: 'SEND_OTP', to: email, name: user.firstName, otp, purpose: 'forgot-password' });
+    await emailService.sendOTP(email, user.firstName, otp, 'forgot-password');
 
     return {
       message: `Reset code sent to ${maskEmail(email)}`,
-      ...(env.EXPOSE_DEV_OTP && { devOtp: otp }),
     };
   },
 
