@@ -66,6 +66,27 @@ async function main() {
   });
   console.info(`✅ Dev corper 2: ${corper2.stateCode} — ${corper2.firstName} ${corper2.lastName}`);
 
+  const corper3Password = await bcrypt.hash('Corper@1234', SALT_ROUNDS);
+  const corper3 = await prisma.user.upsert({
+    where: { stateCode: 'KG/24B/1497' },
+    update: {},
+    create: {
+      stateCode: 'KG/24B/1497',
+      firstName: 'Happiness',
+      lastName: 'Owele',
+      email: 'happinessowele@gmail.com',
+      phone: '09011801121',
+      passwordHash: corper3Password,
+      servingState: 'Kogi State',
+      lga: 'Lokoja',
+      ppa: 'Mega Tech Solutions Lokoja',
+      batch: '2024B',
+      isOnboarded: false,
+      isFirstLogin: true,
+    },
+  });
+  console.info(`✅ Dev corper 3: ${corper3.stateCode} — ${corper3.firstName} ${corper3.lastName}`);
+
   // ── Mutual follow between the two dev corpers ────────────────────────────
   await prisma.follow.upsert({
     where: { followerId_followingId: { followerId: corper1.id, followingId: corper2.id } },
@@ -84,6 +105,7 @@ async function main() {
   console.info('Admin login:  admin@corpers-connect.ng / Admin@1234');
   console.info('Corper 1:     KG/25C/1358 / Corper@1234  (udofotsx@yahoo.com)');
   console.info('Corper 2:     KG/25C/1359 / Corper@1234  (chukwuemeriepascal@outlook.com)');
+  console.info('Corper 3:     KG/24B/1497 / Corper@1234  (happinessowele@gmail.com)');
   console.info('─────────────────────────────────────────\n');
 }
 
