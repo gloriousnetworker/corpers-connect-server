@@ -40,7 +40,7 @@ export const MOCK_CORPERS: CorperRecord[] = [
     phone: '09011801121',
     servingState: 'Kogi State',
     ppa: 'Mega Tech Solutions Lokoja',
-    batch: '2024B',
+    batch: '2024B2',
     lga: 'Lokoja',
   },
 ];

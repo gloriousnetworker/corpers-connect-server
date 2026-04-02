@@ -80,7 +80,7 @@ async function main() {
       servingState: 'Kogi State',
       lga: 'Lokoja',
       ppa: 'Mega Tech Solutions Lokoja',
-      batch: '2024B',
+      batch: '2024B2',
       isOnboarded: false,
       isFirstLogin: true,
     },
