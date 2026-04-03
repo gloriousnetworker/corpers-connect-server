@@ -13,6 +13,7 @@ declare global {
         sessionId?: string;
       };
       rawBody?: Buffer;
+      id: string;
     }
   }
 }

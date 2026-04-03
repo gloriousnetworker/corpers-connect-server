@@ -6,6 +6,7 @@ import compression from 'compression';
 import { env } from './config/env';
 import { globalRateLimiter } from './shared/middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './shared/middleware/errorHandler';
+import { requestIdMiddleware } from './shared/middleware/requestId.middleware';
 
 // Route imports
 import authRoutes from './modules/auth/auth.routes';
@@ -30,6 +31,10 @@ const app = express();
 // Railway sits behind a load balancer that sets X-Forwarded-For.
 // Without this, express-rate-limit cannot identify real client IPs.
 app.set('trust proxy', 1);
+
+// ── Request ID ────────────────────────────────────────────────────────────────
+// Must be first so req.id is available to morgan tokens and error handlers.
+app.use(requestIdMiddleware);
 
 // ── Security ──────────────────────────────────────────────────────────────────
 app.use(helmet());
@@ -61,8 +66,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 
 // ── Logging ───────────────────────────────────────────────────────────────────
+// Custom morgan token that stamps every log line with the request ID so a
+// single Railway log grep on a UUID surfaces the full request lifecycle.
+morgan.token('req-id', (req: express.Request) => req.id);
+
 if (env.NODE_ENV !== 'test') {
-  app.use(morgan(env.NODE_ENV === 'development' ? 'dev' : 'combined'));
+  const logFormat =
+    env.NODE_ENV === 'development'
+      ? ':req-id :method :url :status :response-time ms'
+      : ':req-id :remote-addr :method :url :status :response-time ms :res[content-length]';
+  app.use(morgan(logFormat));
 }
 
 // ── Global Rate Limit ─────────────────────────────────────────────────────────

@@ -5,10 +5,11 @@ import { env } from '../../config/env';
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ): void => {
+  const reqId = req.id ?? 'unknown';
   // Zod validation errors
   if (err instanceof ZodError) {
     res.status(422).json({
@@ -50,13 +51,13 @@ export const errorHandler = (
   }
   // Table does not exist — schema not pushed yet
   if (prismaCode === 'P2021' || prismaCode === 'P1001' || prismaCode === 'P1003') {
-    console.error(`[DB ERROR ${prismaCode}]`, err.message);
+    console.error(`[${reqId}] [DB ERROR ${prismaCode}]`, err.message);
     res.status(503).json({ success: false, message: 'Database not ready. Please try again.' });
     return;
   }
 
   // Unknown errors — always log full error, only expose stack in dev
-  console.error(`[500] ${err.name}: ${err.message}`, err.stack);
+  console.error(`[${reqId}] [500] ${err.name}: ${err.message}`, err.stack);
   res.status(500).json({
     success: false,
     message: 'An unexpected error occurred',
