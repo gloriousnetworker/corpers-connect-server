@@ -78,6 +78,12 @@ export const adminService = {
   // ── Dashboard ─────────────────────────────────────────────────────────────────
 
   async getDashboard() {
+    const now = new Date();
+    const days30ago = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const days7ago  = new Date(now.getTime() -  7 * 24 * 60 * 60 * 1000);
+    const days14ago = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const days60ago = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
     const [
       totalUsers,
       activeUsers,
@@ -86,6 +92,17 @@ export const adminService = {
       pendingReports,
       pendingSellerApps,
       activeSubscriptions,
+      newUsersThisWeek,
+      newUsersPrevWeek,
+      // Time-series data (last 30 days)
+      newUsers30d,
+      subscriptions30d,
+      subscriptionsPrev30d,
+      posts30d,
+      stories30d,
+      // Recent activity
+      recentReports,
+      recentRegistrations,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
@@ -94,7 +111,85 @@ export const adminService = {
       prisma.report.count({ where: { status: 'PENDING' } }),
       prisma.sellerApplication.count({ where: { status: 'PENDING' } }),
       prisma.subscription.count({ where: { status: 'ACTIVE' } }),
+      prisma.user.count({ where: { createdAt: { gte: days7ago } } }),
+      prisma.user.count({ where: { createdAt: { gte: days14ago, lt: days7ago } } }),
+      // Raw records for grouping — only select createdAt to minimise payload
+      prisma.user.findMany({
+        where: { createdAt: { gte: days30ago } },
+        select: { createdAt: true },
+      }),
+      prisma.subscription.findMany({
+        where: { createdAt: { gte: days30ago } },
+        select: { createdAt: true, amountKobo: true },
+      }),
+      prisma.subscription.findMany({
+        where: { createdAt: { gte: days60ago, lt: days30ago } },
+        select: { amountKobo: true },
+      }),
+      prisma.post.findMany({
+        where: { createdAt: { gte: days30ago } },
+        select: { createdAt: true },
+      }),
+      prisma.story.findMany({
+        where: { createdAt: { gte: days30ago } },
+        select: { createdAt: true },
+      }),
+      prisma.report.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, entityType: true, reason: true, status: true, createdAt: true },
+      }),
+      prisma.user.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, firstName: true, lastName: true, stateCode: true, servingState: true, level: true, createdAt: true },
+      }),
     ]);
+
+    // ── Build 30-day date buckets ─────────────────────────────────────────────
+    const dateBuckets = buildDateBuckets(30);
+
+    // User growth
+    const userGrowthMap = new Map(dateBuckets.map((d) => [d, 0]));
+    for (const u of newUsers30d) {
+      const key = toDateStr(u.createdAt);
+      if (userGrowthMap.has(key)) userGrowthMap.set(key, userGrowthMap.get(key)! + 1);
+    }
+    const userGrowth = dateBuckets.map((date) => ({ date, count: userGrowthMap.get(date)! }));
+
+    // Revenue per day (kobo → naira)
+    const revenueMap = new Map(dateBuckets.map((d) => [d, 0]));
+    for (const s of subscriptions30d) {
+      const key = toDateStr(s.createdAt);
+      if (revenueMap.has(key)) revenueMap.set(key, revenueMap.get(key)! + s.amountKobo);
+    }
+    const revenue = dateBuckets.map((date) => ({
+      date,
+      amount: Math.round(revenueMap.get(date)! / 100),
+    }));
+
+    // Content activity (posts + stories per day; reels = 0 until model exists)
+    const postMap    = new Map(dateBuckets.map((d) => [d, 0]));
+    const storyMap   = new Map(dateBuckets.map((d) => [d, 0]));
+    for (const p of posts30d)   { const k = toDateStr(p.createdAt); if (postMap.has(k))  postMap.set(k,  postMap.get(k)!  + 1); }
+    for (const s of stories30d) { const k = toDateStr(s.createdAt); if (storyMap.has(k)) storyMap.set(k, storyMap.get(k)! + 1); }
+    const contentActivity = dateBuckets.map((date) => ({
+      date,
+      posts:   postMap.get(date)!,
+      stories: storyMap.get(date)!,
+      reels:   0,
+    }));
+
+    // ── Revenue summary ───────────────────────────────────────────────────────
+    const revenue30dKobo   = subscriptions30d.reduce((s, x) => s + x.amountKobo, 0);
+    const revenuePrev30dKobo = subscriptionsPrev30d.reduce((s, x) => s + x.amountKobo, 0);
+    const revenueChange = revenuePrev30dKobo === 0
+      ? 0
+      : Math.round(((revenue30dKobo - revenuePrev30dKobo) / revenuePrev30dKobo) * 100);
+
+    const newThisWeekChange = newUsersPrevWeek === 0
+      ? 0
+      : Math.round(((newUsersThisWeek - newUsersPrevWeek) / newUsersPrevWeek) * 100);
 
     return {
       totalUsers,
@@ -104,6 +199,19 @@ export const adminService = {
       pendingReports,
       pendingSellerApps,
       activeSubscriptions,
+      newUsersThisWeek,
+      newThisWeekChange,
+      revenue30d: Math.round(revenue30dKobo / 100),
+      revenueChange,
+      charts: { userGrowth, revenue, contentActivity },
+      recentReports: recentReports.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      recentRegistrations: recentRegistrations.map((u) => ({
+        ...u,
+        createdAt: u.createdAt.toISOString(),
+      })),
     };
   },
 
@@ -453,3 +561,20 @@ export const adminService = {
     await audit(superAdminId, 'ADMIN_DEACTIVATED', { entityId: adminId, ipAddress });
   },
 };
+
+// ── Dashboard helpers ──────────────────────────────────────────────────────────
+
+/** Returns an array of YYYY-MM-DD strings for the last `days` days (oldest first). */
+function buildDateBuckets(days: number): string[] {
+  const buckets: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    buckets.push(toDateStr(d));
+  }
+  return buckets;
+}
+
+function toDateStr(date: Date): string {
+  return date.toISOString().slice(0, 10); // "YYYY-MM-DD"
+}
