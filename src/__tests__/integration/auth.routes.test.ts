@@ -3,6 +3,14 @@ import app from '../../app';
 import { prisma } from '../../config/prisma';
 import { redis, redisHelpers } from '../../config/redis';
 
+// Prevent real Gmail calls during integration tests
+jest.mock('../../shared/services/email.service', () => ({
+  emailService: {
+    sendOTP: jest.fn().mockResolvedValue(undefined),
+    sendWelcome: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 const BASE = '/api/v1/auth';
 
 // Test state code not pre-seeded — used for registration flow

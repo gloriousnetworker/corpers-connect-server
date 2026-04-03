@@ -67,6 +67,8 @@ export const authService = {
       email: corper.email,
       maskedEmail: maskEmail(corper.email),
       message: `Verification code sent to ${maskEmail(corper.email)}`,
+      // Only expose raw OTP in test env so integration tests can verify the flow
+      ...(env.NODE_ENV === 'test' && { devOtp: otp }),
     };
   },
 
@@ -235,6 +237,7 @@ export const authService = {
 
     return {
       message: `Reset code sent to ${maskEmail(email)}`,
+      ...(env.NODE_ENV === 'test' && { devOtp: otp }),
     };
   },
 
