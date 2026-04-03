@@ -40,6 +40,18 @@ export const listListingsSchema = z.object({
   maxPrice: z.coerce.number().positive().optional(),
 });
 
+export const createReviewSchema = z.object({
+  rating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().max(1000).optional(),
+});
+
+export const listReviewsSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
 export type CreateListingDto = z.infer<typeof createListingSchema>;
 export type UpdateListingDto = z.infer<typeof updateListingSchema>;
 export type ListListingsDto = z.infer<typeof listListingsSchema>;
+export type CreateReviewDto = z.infer<typeof createReviewSchema>;
+export type ListReviewsDto = z.infer<typeof listReviewsSchema>;

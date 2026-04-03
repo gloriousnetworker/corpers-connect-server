@@ -4,6 +4,8 @@ import {
   createListingSchema,
   updateListingSchema,
   listListingsSchema,
+  createReviewSchema,
+  listReviewsSchema,
 } from './marketplace.validation';
 import {
   idDocUpload,
@@ -149,6 +151,39 @@ export const marketplaceController = {
         limit,
       );
       res.json({ status: 'success', data });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Reviews ──────────────────────────────────────────────────────────────────
+
+  async createReview(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = createReviewSchema.safeParse(req.body);
+      if (!parsed.success) return next(new ValidationError(parsed.error.errors[0].message));
+      const data = await marketplaceService.createReview(req.user!.id, p(req.params.listingId), parsed.data);
+      res.status(201).json({ status: 'success', data });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getListingReviews(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = listReviewsSchema.safeParse(req.query);
+      if (!parsed.success) return next(new ValidationError(parsed.error.errors[0].message));
+      const data = await marketplaceService.getListingReviews(p(req.params.listingId), parsed.data);
+      res.json({ status: 'success', data });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async deleteReview(req: Request, res: Response, next: NextFunction) {
+    try {
+      await marketplaceService.deleteReview(req.user!.id, p(req.params.reviewId));
+      res.json({ status: 'success', data: null });
     } catch (err) {
       next(err);
     }

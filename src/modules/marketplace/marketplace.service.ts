@@ -6,7 +6,7 @@ import {
   ConflictError,
 } from '../../shared/utils/errors';
 import { ListingCategory, ListingType, ListingStatus } from '@prisma/client';
-import type { CreateListingDto, UpdateListingDto, ListListingsDto } from './marketplace.validation';
+import type { CreateListingDto, UpdateListingDto, ListListingsDto, CreateReviewDto, ListReviewsDto } from './marketplace.validation';
 import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
 import { notificationsService } from '../notifications/notifications.service';
 
@@ -267,5 +267,65 @@ export const marketplaceService = {
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
+  },
+
+  // ── Reviews ───────────────────────────────────────────────────────────────────
+
+  async createReview(userId: string, listingId: string, dto: CreateReviewDto) {
+    const listing = await prisma.marketplaceListing.findUnique({ where: { id: listingId } });
+    if (!listing) throw new NotFoundError('Listing not found');
+    if (listing.sellerId === userId) throw new BadRequestError('You cannot review your own listing');
+
+    const existing = await prisma.listingReview.findUnique({
+      where: { listingId_authorId: { listingId, authorId: userId } },
+    });
+    if (existing) throw new ConflictError('You have already reviewed this listing');
+
+    return prisma.listingReview.create({
+      data: { listingId, authorId: userId, rating: dto.rating, comment: dto.comment },
+      include: {
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+      },
+    });
+  },
+
+  async getListingReviews(listingId: string, dto: ListReviewsDto) {
+    const listing = await prisma.marketplaceListing.findUnique({ where: { id: listingId } });
+    if (!listing) throw new NotFoundError('Listing not found');
+
+    const limit = dto.limit ?? 20;
+    const rows = await prisma.listingReview.findMany({
+      where: { listingId },
+      take: limit + 1,
+      ...(dto.cursor && { cursor: { id: dto.cursor }, skip: 1 }),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+      },
+    });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    const agg = await prisma.listingReview.aggregate({
+      where: { listingId },
+      _avg: { rating: true },
+      _count: { id: true },
+    });
+
+    return {
+      items,
+      nextCursor: hasMore ? items[items.length - 1].id : null,
+      hasMore,
+      averageRating: agg._avg.rating ?? 0,
+      totalReviews: agg._count.id,
+    };
+  },
+
+  async deleteReview(userId: string, reviewId: string) {
+    const review = await prisma.listingReview.findUnique({ where: { id: reviewId } });
+    if (!review) throw new NotFoundError('Review not found');
+    if (review.authorId !== userId) throw new ForbiddenError('Not your review');
+    await prisma.listingReview.delete({ where: { id: reviewId } });
   },
 };

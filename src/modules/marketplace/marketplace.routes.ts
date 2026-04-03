@@ -65,4 +65,21 @@ router.post('/listings/:listingId/inquire', authenticate, marketplaceController.
  */
 router.get('/listings/:listingId/inquiries', authenticate, marketplaceController.getListingInquiries);
 
+// ── Reviews ───────────────────────────────────────────────────────────────────
+
+/** GET /api/v1/marketplace/listings/:listingId/reviews
+ *  Get paginated reviews for a listing. Auth optional.
+ */
+router.get('/listings/:listingId/reviews', optionalAuth, marketplaceController.getListingReviews);
+
+/** POST /api/v1/marketplace/listings/:listingId/reviews
+ *  Submit a review (1-5 stars + optional comment). One per user per listing.
+ */
+router.post('/listings/:listingId/reviews', authenticate, marketplaceController.createReview);
+
+/** DELETE /api/v1/marketplace/listings/:listingId/reviews/:reviewId
+ *  Delete own review.
+ */
+router.delete('/listings/:listingId/reviews/:reviewId', authenticate, marketplaceController.deleteReview);
+
 export default router;
