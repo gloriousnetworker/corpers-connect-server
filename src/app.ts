@@ -74,11 +74,26 @@ app.use(compression());
 // single Railway log grep on a UUID surfaces the full request lifecycle.
 morgan.token('req-id', (req: express.Request) => req.id);
 
+// Redact sensitive query-param values before logging (token, password, secret, key, etc.)
+morgan.token('safe-url', (req: express.Request) => {
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const REDACTED = '[REDACTED]';
+    const SENSITIVE = /^(token|password|secret|key|api_?key|access_?token|refresh_?token|auth)$/i;
+    url.searchParams.forEach((_val, name) => {
+      if (SENSITIVE.test(name)) url.searchParams.set(name, REDACTED);
+    });
+    return url.pathname + (url.search || '');
+  } catch {
+    return req.url;
+  }
+});
+
 if (env.NODE_ENV !== 'test') {
   const logFormat =
     env.NODE_ENV === 'development'
-      ? ':req-id :method :url :status :response-time ms'
-      : ':req-id :remote-addr :method :url :status :response-time ms :res[content-length]';
+      ? ':req-id :method :safe-url :status :response-time ms'
+      : ':req-id :remote-addr :method :safe-url :status :response-time ms :res[content-length]';
   app.use(morgan(logFormat));
 }
 

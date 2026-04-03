@@ -18,6 +18,14 @@ const config: Config = {
     '!src/server.ts',
   ],
   coverageDirectory: 'coverage',
+  coverageThreshold: {
+    global: {
+      branches: 30,
+      functions: 40,
+      lines: 40,
+      statements: 40,
+    },
+  },
   verbose: true,
   testTimeout: 30000,
   // Integration tests share a single DB — run serially to avoid stateCode unique-constraint races
