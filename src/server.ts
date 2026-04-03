@@ -75,4 +75,20 @@ async function startServer() {
   }
 }
 
+// Catch unhandled promise rejections (e.g. failed DB queries outside request cycle,
+// BullMQ job errors that weren't caught in the processor).
+// Without this, Node.js silently swallows the error and the server keeps running
+// in an unknown state — worse than crashing.
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('❌ Unhandled promise rejection:', reason);
+  process.exit(1);
+});
+
+// Catch synchronous exceptions that escaped all try/catch blocks.
+// Continuing after an uncaught exception is unsafe — exit and let Railway restart.
+process.on('uncaughtException', (error: Error) => {
+  console.error('❌ Uncaught exception:', error);
+  process.exit(1);
+});
+
 startServer();
