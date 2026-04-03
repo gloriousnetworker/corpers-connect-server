@@ -5,7 +5,7 @@ export type SendOtpJobData = {
   to: string;
   name: string;
   otp: string;
-  purpose: 'registration' | 'forgot-password' | '2fa';
+  purpose: 'registration' | 'forgot-password' | '2fa' | 'email-change';
 };
 
 export type SendWelcomeJobData = {

@@ -1,7 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { usersService } from './users.service';
 import { sendSuccess } from '../../shared/utils/apiResponse';
-import { updateMeSchema, onboardSchema, paginationSchema } from './users.validation';
+import {
+  updateMeSchema,
+  onboardSchema,
+  paginationSchema,
+  changeEmailInitiateSchema,
+  changeEmailVerifySchema,
+} from './users.validation';
 import { avatarUpload, uploadToCloudinary } from '../../shared/middleware/upload.middleware';
 import { AppError } from '../../shared/utils/errors';
 import { postsService } from '../posts/posts.service';
@@ -55,6 +61,28 @@ export const usersController = {
         next(uploadErr);
       }
     });
+  },
+
+  // ── Email Change ─────────────────────────────────────────────────────────────
+
+  async initiateEmailChange(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dto = changeEmailInitiateSchema.parse(req.body);
+      const data = await usersService.initiateEmailChange(req.user!.id, dto);
+      sendSuccess(res, { maskedEmail: data.maskedEmail, ...(data.devOtp ? { devOtp: data.devOtp } : {}) }, data.message);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async verifyEmailChange(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { otp } = changeEmailVerifySchema.parse(req.body);
+      const data = await usersService.verifyEmailChange(req.user!.id, otp);
+      sendSuccess(res, data.user, data.message);
+    } catch (err) {
+      next(err);
+    }
   },
 
   // ── Public Profile ───────────────────────────────────────────────────────────

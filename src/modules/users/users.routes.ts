@@ -29,6 +29,18 @@ router.post('/me/onboard', authenticate, usersController.onboard);
  */
 router.post('/me/avatar', authenticate, usersController.uploadAvatar);
 
+/** POST /api/v1/users/me/email/initiate
+ *  Step 1 of email change: verify current password and send OTP to the new address.
+ *  Body: { newEmail, currentPassword }
+ */
+router.post('/me/email/initiate', authenticate, usersController.initiateEmailChange);
+
+/** POST /api/v1/users/me/email/verify
+ *  Step 2 of email change: verify OTP → update email → invalidate all sessions.
+ *  Body: { otp }
+ */
+router.post('/me/email/verify', authenticate, usersController.verifyEmailChange);
+
 /** GET /api/v1/users/me/blocked
  *  Returns a list of users blocked by the authenticated user.
  */

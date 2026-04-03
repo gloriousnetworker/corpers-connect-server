@@ -77,6 +77,7 @@ export const emailService = {
       registration:     'Verify your Corpers Connect account',
       'forgot-password': 'Reset your Corpers Connect password',
       '2fa':            'Your Corpers Connect login code',
+      'email-change':   'Verify your new Corpers Connect email address',
     };
 
     const transporter = getTransporter();

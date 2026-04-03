@@ -31,5 +31,16 @@ export const searchSchema = z.object({
     .refine((n) => n > 0 && n <= 100, 'Limit must be 1–100'),
 });
 
+export const changeEmailInitiateSchema = z.object({
+  newEmail: z.string().email('Please provide a valid email address').toLowerCase(),
+  currentPassword: z.string().min(1, 'Current password is required'),
+});
+
+export const changeEmailVerifySchema = z.object({
+  otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d+$/, 'OTP must be numeric'),
+});
+
 export type UpdateMeDto = z.infer<typeof updateMeSchema>;
 export type OnboardDto = z.infer<typeof onboardSchema>;
+export type ChangeEmailInitiateDto = z.infer<typeof changeEmailInitiateSchema>;
+export type ChangeEmailVerifyDto = z.infer<typeof changeEmailVerifySchema>;

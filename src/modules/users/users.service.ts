@@ -1,10 +1,13 @@
+import bcrypt from 'bcrypt';
 import { prisma } from '../../config/prisma';
 import {
   NotFoundError,
   BadRequestError,
   ForbiddenError,
 } from '../../shared/utils/errors';
-import type { UpdateMeDto, OnboardDto } from './users.validation';
+import type { UpdateMeDto, OnboardDto, ChangeEmailInitiateDto } from './users.validation';
+import { otpService } from '../../shared/services/otp.service';
+import { addEmailJob } from '../../jobs';
 import { notificationsService } from '../notifications/notifications.service';
 
 const DEFAULT_LIMIT = 20;
@@ -94,6 +97,83 @@ export const usersService = {
       data: { profilePicture: imageUrl },
     });
     return sanitiseOwnProfile(updated as unknown as Record<string, unknown>);
+  },
+
+  // ── Email Change ─────────────────────────────────────────────────────────────
+
+  /**
+   * Step 1: validate current password, check new email availability,
+   *         store pending email in Redis and send OTP to the new address.
+   */
+  async initiateEmailChange(userId: string, dto: ChangeEmailInitiateDto) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundError('User not found');
+
+    // Require current password to prevent unauthorised email hijacking
+    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!valid) throw new BadRequestError('Current password is incorrect');
+
+    if (dto.newEmail === user.email) {
+      throw new BadRequestError('New email must be different from your current email');
+    }
+
+    // Check the new address isn't already registered
+    const taken = await prisma.user.findUnique({ where: { email: dto.newEmail } });
+    if (taken) throw new BadRequestError('That email address is already in use');
+
+    // Store the pending new email in Redis (10 min TTL)
+    const { redisHelpers } = await import('../../config/redis');
+    await redisHelpers.setex(`email_change:${userId}`, 600, dto.newEmail);
+
+    // Generate OTP and send it to the NEW address so the user proves ownership
+    const otp = otpService.generate();
+    await otpService.store(`email_change_otp:${dto.newEmail}`, otp);
+    await addEmailJob({
+      type: 'SEND_OTP',
+      to: dto.newEmail,
+      name: user.firstName,
+      otp,
+      purpose: 'email-change',
+    });
+
+    const { env } = await import('../../config/env');
+    return {
+      message: `Verification code sent to ${maskEmail(dto.newEmail)}`,
+      maskedEmail: maskEmail(dto.newEmail),
+      ...(env.NODE_ENV === 'test' && { devOtp: otp }),
+    };
+  },
+
+  /**
+   * Step 2: verify OTP → update email → set isVerified=false (new email
+   *         not yet admin-verified) → invalidate all sessions for security.
+   */
+  async verifyEmailChange(userId: string, otp: string) {
+    const { redisHelpers } = await import('../../config/redis');
+    const newEmail = await redisHelpers.get(`email_change:${userId}`);
+    if (!newEmail) {
+      throw new BadRequestError('Email change session expired. Please start again.');
+    }
+
+    // Verify OTP (throws BadRequestError on failure)
+    await otpService.verify(`email_change_otp:${newEmail}`, otp);
+
+    // Update email; mark unverified so admin re-verification is required
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { email: newEmail, isVerified: false },
+    });
+
+    // Invalidate all sessions — the user's identity has changed
+    await prisma.session.deleteMany({ where: { userId } });
+
+    // Clean up Redis
+    await redisHelpers.del(`email_change:${userId}`);
+
+    return {
+      message: 'Email updated successfully. Please log in again.',
+      user: sanitiseOwnProfile(updated as unknown as Record<string, unknown>),
+    };
   },
 
   // ── Public Profile ───────────────────────────────────────────────────────────
@@ -364,3 +444,9 @@ export const usersService = {
     });
   },
 };
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  const masked = local.slice(0, 2) + '***' + local.slice(-1);
+  return `${masked}@${domain}`;
+}
