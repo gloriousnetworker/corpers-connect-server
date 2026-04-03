@@ -1,5 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, CookieOptions } from 'express';
 import { adminService } from './admin.service';
+import { env } from '../../config/env';
+import { jwtService } from '../../shared/services/jwt.service';
+import { UnauthorizedError } from '../../shared/utils/errors';
 import {
   adminLoginSchema,
   listUsersSchema,
@@ -17,6 +20,18 @@ import { ValidationError } from '../../shared/utils/errors';
 const p = (val: string | string[]) => (Array.isArray(val) ? val[0] : val);
 const ip = (req: Request) => (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.ip;
 
+const ADMIN_SESSION_COOKIE = 'cc_admin_session';
+
+function adminCookieOptions(): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  };
+}
+
 export const adminController = {
   // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -26,7 +41,38 @@ export const adminController = {
       if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
 
       const result = await adminService.login(parsed.data);
+      // Set token as httpOnly cookie for middleware validation + XSS safety.
+      // Also return accessToken in the JSON body so the client can store it in
+      // memory for Authorization: Bearer headers without touching localStorage.
+      res.cookie(ADMIN_SESSION_COOKIE, result.accessToken, adminCookieOptions());
       res.json({ status: 'success', data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.clearCookie(ADMIN_SESSION_COOKIE, { ...adminCookieOptions(), maxAge: 0 });
+      res.json({ status: 'success', data: null, message: 'Logged out' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async me(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = req.cookies[ADMIN_SESSION_COOKIE] as string | undefined;
+      if (!token) throw new UnauthorizedError('No session cookie');
+
+      // Verify the token and return admin user info so the frontend can hydrate
+      // in-memory state after a page refresh without reading from localStorage.
+      const payload = jwtService.verifyAccessToken(token);
+      const role = (payload as { role?: string }).role;
+      if (role !== 'ADMIN' && role !== 'SUPERADMIN') throw new UnauthorizedError('Not an admin');
+
+      const admin = await adminService.getAdminById(payload.sub);
+      res.json({ status: 'success', data: { token, admin } });
     } catch (err) {
       next(err);
     }

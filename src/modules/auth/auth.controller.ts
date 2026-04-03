@@ -1,12 +1,12 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, CookieOptions } from 'express';
 import { authService } from './auth.service';
 import { sendSuccess, sendCreated } from '../../shared/utils/apiResponse';
+import { env } from '../../config/env';
 import {
   lookupSchema,
   registerInitiateSchema,
   registerVerifySchema,
   loginSchema,
-  refreshSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
@@ -14,6 +14,38 @@ import {
   disable2FASchema,
   twoFAChallengeSchema,
 } from './auth.validation';
+
+// ── Refresh token cookie helpers ───────────────────────────────────────────────
+
+const REFRESH_COOKIE = 'cc_refresh_token';
+
+function refreshCookieOptions(): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    // Restrict to the refresh endpoint so the cookie is never sent on other requests.
+    path: '/api/v1/auth/refresh',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+  };
+}
+
+/**
+ * Extracts the refreshToken from a service result, sets it as an httpOnly
+ * cookie, and returns the rest of the data (without the token) for the
+ * JSON response body.
+ */
+function setRefreshCookie(
+  res: Response,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  if (typeof data.refreshToken === 'string') {
+    res.cookie(REFRESH_COOKIE, data.refreshToken, refreshCookieOptions());
+    const { refreshToken: _rt, ...rest } = data;
+    return rest;
+  }
+  return data;
+}
 
 export const authController = {
   async lookup(req: Request, res: Response, next: NextFunction) {
@@ -40,7 +72,8 @@ export const authController = {
     try {
       const { stateCode, otp } = registerVerifySchema.parse(req.body);
       const data = await authService.verifyRegistration(stateCode, otp);
-      sendCreated(res, data, data.message);
+      const safe = setRefreshCookie(res, data as Record<string, unknown>);
+      sendCreated(res, safe, data.message);
     } catch (err) {
       next(err);
     }
@@ -50,7 +83,8 @@ export const authController = {
     try {
       const { identifier, password } = loginSchema.parse(req.body);
       const data = await authService.login(identifier, password);
-      sendSuccess(res, data, 'Login successful');
+      const safe = setRefreshCookie(res, data as Record<string, unknown>);
+      sendSuccess(res, safe, 'Login successful');
     } catch (err) {
       next(err);
     }
@@ -60,7 +94,8 @@ export const authController = {
     try {
       const { userId, code } = twoFAChallengeSchema.parse(req.body);
       const data = await authService.complete2FAChallenge(userId, code);
-      sendSuccess(res, data, 'Login successful');
+      const safe = setRefreshCookie(res, data as Record<string, unknown>);
+      sendSuccess(res, safe, 'Login successful');
     } catch (err) {
       next(err);
     }
@@ -68,9 +103,14 @@ export const authController = {
 
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
-      const { refreshToken } = refreshSchema.parse(req.body);
+      const refreshToken = req.cookies[REFRESH_COOKIE] as string | undefined;
+      if (!refreshToken) {
+        res.status(401).json({ success: false, message: 'No refresh token' });
+        return;
+      }
       const data = await authService.refreshToken(refreshToken);
-      sendSuccess(res, data, 'Token refreshed');
+      const safe = setRefreshCookie(res, data as Record<string, unknown>);
+      sendSuccess(res, safe, 'Token refreshed');
     } catch (err) {
       next(err);
     }
@@ -79,6 +119,8 @@ export const authController = {
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
       await authService.logout(req.user!.id, req.user!.sessionId ?? '', req.user!.jti);
+      // Clear the refresh token cookie
+      res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: 0 });
       sendSuccess(res, null, 'Logged out successfully');
     } catch (err) {
       next(err);

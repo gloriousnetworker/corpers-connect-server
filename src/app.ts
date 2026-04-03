@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { globalRateLimiter } from './shared/middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './shared/middleware/errorHandler';
@@ -51,6 +52,9 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
+
+// ── Cookie Parser ─────────────────────────────────────────────────────────────
+app.use(cookieParser());
 
 // ── Parsing & Compression ─────────────────────────────────────────────────────
 // Capture raw body for Paystack webhook HMAC verification

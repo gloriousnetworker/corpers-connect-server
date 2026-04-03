@@ -4,8 +4,10 @@ import { adminController } from './admin.controller';
 
 const router = Router();
 
-// ── Public: Admin Login ───────────────────────────────────────────────────────
+// ── Public: Admin Auth ────────────────────────────────────────────────────────
 router.post('/auth/login', adminController.login);
+router.post('/auth/logout', adminController.logout);
+router.get('/auth/me', adminController.me);
 
 // ── All remaining routes require admin JWT ────────────────────────────────────
 router.use(authenticate, requireAdmin);

@@ -66,6 +66,15 @@ export const adminService = {
     };
   },
 
+  async getAdminById(id: string) {
+    const admin = await prisma.adminUser.findUnique({
+      where: { id },
+      select: { id: true, email: true, firstName: true, lastName: true, role: true, isActive: true },
+    });
+    if (!admin || !admin.isActive) throw new AppError('Admin not found', 404);
+    return admin;
+  },
+
   // ── Dashboard ─────────────────────────────────────────────────────────────────
 
   async getDashboard() {
