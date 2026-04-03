@@ -7,7 +7,6 @@ import { env } from '../../config/env';
 import { jwtService } from '../../shared/services/jwt.service';
 import { otpService } from '../../shared/services/otp.service';
 import { addEmailJob } from '../../jobs';
-import { emailService } from '../../shared/services/email.service';
 import { nyscService } from '../nysc/nysc.service';
 import {
   BadRequestError,
@@ -58,10 +57,12 @@ export const authService = {
       JSON.stringify({ passwordHash, corper }),
     );
 
-    // Generate and send OTP directly (synchronous — OTPs are time-sensitive)
+    // Generate OTP, persist to Redis, then enqueue the email asynchronously.
+    // Sending via BullMQ means a slow/flaky SMTP call never blocks the HTTP response.
+    // The job has 3 attempts with exponential back-off (see queues.ts).
     const otp = otpService.generate();
     await otpService.store(`reg:${corper.email}`, otp);
-    await emailService.sendOTP(corper.email, corper.firstName, otp, 'registration');
+    await addEmailJob({ type: 'SEND_OTP', to: corper.email, name: corper.firstName, otp, purpose: 'registration' });
 
     return {
       email: corper.email,
@@ -257,7 +258,7 @@ export const authService = {
 
     const otp = otpService.generate();
     await otpService.store(`reset:${email}`, otp);
-    await emailService.sendOTP(email, user.firstName, otp, 'forgot-password');
+    await addEmailJob({ type: 'SEND_OTP', to: email, name: user.firstName, otp, purpose: 'forgot-password' });
 
     return {
       message: `Reset code sent to ${maskEmail(email)}`,
