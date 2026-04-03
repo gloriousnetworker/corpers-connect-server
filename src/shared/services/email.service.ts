@@ -18,8 +18,25 @@ function getTransporter(): nodemailer.Transporter {
   return _transporter;
 }
 
+// ── HTML escaping ───────────────────────────────────────────────────────────
+// Prevents XSS when user-supplied values (names, emails) are embedded in HTML.
+// Must be applied to every untrusted string before template interpolation.
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&':  return '&amp;';
+      case '<':  return '&lt;';
+      case '>':  return '&gt;';
+      case '"':  return '&quot;';
+      case "'":  return '&#39;';
+      default:   return ch;
+    }
+  });
+}
+
 // ── HTML builder ────────────────────────────────────────────────────────────
 function otpHtml(name: string, otp: string): string {
+  const safeName = escapeHtml(name);
   return `
     <!DOCTYPE html>
     <html>
@@ -30,7 +47,7 @@ function otpHtml(name: string, otp: string): string {
             <h1 style="color: #008751; margin: 0; font-size: 24px;">Corpers Connect</h1>
             <p style="color: #666; margin: 4px 0 0;">Connecting Nigeria's Corps Members</p>
           </div>
-          <p style="color: #333; font-size: 16px;">Hello <strong>${name}</strong>,</p>
+          <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
           <p style="color: #555;">Your verification code is:</p>
           <div style="background: #f0faf4; border: 2px solid #008751; border-radius: 8px;
                       padding: 20px; text-align: center; margin: 20px 0;">
@@ -74,7 +91,10 @@ export const emailService = {
   },
 
   async sendWelcome(to: string, name: string, defaultPassword: string): Promise<void> {
-    const transporter = getTransporter();
+    const safeName     = escapeHtml(name);
+    const safeTo       = escapeHtml(to);
+    const safePassword = escapeHtml(defaultPassword);
+    const transporter  = getTransporter();
     await transporter.sendMail({
       from: `"Corpers Connect" <${env.GMAIL_USER}>`,
       to,
@@ -87,12 +107,12 @@ export const emailService = {
               <div style="text-align: center; margin-bottom: 24px;">
                 <h1 style="color: #008751; margin: 0;">Corpers Connect</h1>
               </div>
-              <p>Hello <strong>${name}</strong>,</p>
+              <p>Hello <strong>${safeName}</strong>,</p>
               <p>Your Corpers Connect account has been created by an admin. Welcome to the community!</p>
               <p><strong>Your login credentials:</strong></p>
               <div style="background: #f9f9f9; border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <p style="margin: 0; color: #555;">Email: <strong>${to}</strong></p>
-                <p style="margin: 8px 0 0; color: #555;">Default Password: <strong>${defaultPassword}</strong></p>
+                <p style="margin: 0; color: #555;">Email: <strong>${safeTo}</strong></p>
+                <p style="margin: 8px 0 0; color: #555;">Default Password: <strong>${safePassword}</strong></p>
               </div>
               <p style="color: #e74c3c; font-size: 14px;">
                 <strong>Please change your password immediately after logging in.</strong>
