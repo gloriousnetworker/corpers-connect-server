@@ -4,8 +4,9 @@
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-jest.mock('../../config/prisma', () => ({
-  prisma: {
+jest.mock('../../config/prisma', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client: Record<string, any> = {
     user: { findUnique: jest.fn(), update: jest.fn() },
     subscription: {
       create: jest.fn(),
@@ -14,8 +15,12 @@ jest.mock('../../config/prisma', () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
-  },
-}));
+  };
+  // Execute the callback with the same mock client so transactional code
+  // hits the same jest.fn() instances and existing assertions still work.
+  client.$transaction = jest.fn((cb: (tx: unknown) => Promise<unknown>) => cb(client));
+  return { prisma: client };
+});
 
 jest.mock('../../config/paystack', () => ({
   paystackRequest: jest.fn(),

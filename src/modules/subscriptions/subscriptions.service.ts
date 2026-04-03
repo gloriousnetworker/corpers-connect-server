@@ -28,8 +28,12 @@ interface PaystackVerifyData {
  *   KOPA    → account is 30+ days old AND verified
  *   OTONDO  → default
  */
-async function computeLevel(userId: string) {
-  const user = await prisma.user.findUnique({
+type PrismaClient = typeof prisma;
+
+// Accepts either the global prisma client or a transaction client so it can
+// be called safely inside prisma.$transaction() without breaking atomicity.
+async function computeLevel(userId: string, db: PrismaClient = prisma) {
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { createdAt: true, isVerified: true, subscriptionTier: true },
   });
@@ -171,32 +175,36 @@ export const subscriptionsService = {
     const startDate = new Date();
     const endDate = new Date(startDate.getTime() + planConfig.durationDays * 24 * 60 * 60 * 1000);
 
-    // Cancel any existing active subs for this user (edge case)
-    await prisma.subscription.updateMany({
-      where: { userId, status: 'ACTIVE' },
-      data: { status: 'CANCELLED' },
-    });
+    // All three writes are atomic: if the user.update fails the subscription
+    // record is rolled back, leaving no orphaned ACTIVE subscription.
+    return prisma.$transaction(async (tx) => {
+      // Cancel any existing active subs for this user (edge case)
+      await tx.subscription.updateMany({
+        where: { userId, status: 'ACTIVE' },
+        data: { status: 'CANCELLED' },
+      });
 
-    const subscription = await prisma.subscription.create({
-      data: {
-        userId,
-        tier: 'PREMIUM',
-        plan,
-        amountKobo,
-        startDate,
-        endDate,
-        paystackRef: reference,
-        status: 'ACTIVE',
-      },
-    });
+      const subscription = await tx.subscription.create({
+        data: {
+          userId,
+          tier: 'PREMIUM',
+          plan,
+          amountKobo,
+          startDate,
+          endDate,
+          paystackRef: reference,
+          status: 'ACTIVE',
+        },
+      });
 
-    // Upgrade user tier and level
-    await prisma.user.update({
-      where: { id: userId },
-      data: { subscriptionTier: 'PREMIUM', level: 'CORPER' },
-    });
+      // Upgrade user tier and level
+      await tx.user.update({
+        where: { id: userId },
+        data: { subscriptionTier: 'PREMIUM', level: 'CORPER' },
+      });
 
-    return subscription;
+      return subscription;
+    });
   },
 
   // ── Current Subscription ────────────────────────────────────────────────────
@@ -207,19 +215,22 @@ export const subscriptionsService = {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Auto-expire if past endDate
+    // Auto-expire if past endDate — all three writes are atomic so a partial
+    // failure can't leave the user with a FREE tier but a stale ACTIVE record.
     if (subscription && subscription.endDate < new Date()) {
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { status: 'EXPIRED' },
+      await prisma.$transaction(async (tx) => {
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: { status: 'EXPIRED' },
+        });
+        await tx.user.update({
+          where: { id: userId },
+          data: { subscriptionTier: 'FREE' },
+        });
+        // Re-evaluate level after downgrade (reads the just-updated user row)
+        const newLevel = await computeLevel(userId, tx as unknown as PrismaClient);
+        await tx.user.update({ where: { id: userId }, data: { level: newLevel } });
       });
-      await prisma.user.update({
-        where: { id: userId },
-        data: { subscriptionTier: 'FREE' },
-      });
-      // Re-evaluate level after downgrade
-      const newLevel = await computeLevel(userId);
-      await prisma.user.update({ where: { id: userId }, data: { level: newLevel } });
       return null;
     }
 
@@ -243,22 +254,26 @@ export const subscriptionsService = {
     });
     if (!active) throw new AppError('No active subscription found', 404);
 
-    const cancelled = await prisma.subscription.update({
-      where: { id: active.id },
-      data: { status: 'CANCELLED' },
+    // All three writes are atomic: if the user downgrade fails the subscription
+    // status is rolled back, keeping the data consistent.
+    return prisma.$transaction(async (tx) => {
+      const cancelled = await tx.subscription.update({
+        where: { id: active.id },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Downgrade user tier
+      await tx.user.update({
+        where: { id: userId },
+        data: { subscriptionTier: 'FREE' },
+      });
+
+      // Re-evaluate level after downgrade
+      const newLevel = await computeLevel(userId, tx as unknown as PrismaClient);
+      await tx.user.update({ where: { id: userId }, data: { level: newLevel } });
+
+      return cancelled;
     });
-
-    // Downgrade user tier
-    await prisma.user.update({
-      where: { id: userId },
-      data: { subscriptionTier: 'FREE' },
-    });
-
-    // Re-evaluate level after downgrade
-    const newLevel = await computeLevel(userId);
-    await prisma.user.update({ where: { id: userId }, data: { level: newLevel } });
-
-    return cancelled;
   },
 
   // ── Level ───────────────────────────────────────────────────────────────────
