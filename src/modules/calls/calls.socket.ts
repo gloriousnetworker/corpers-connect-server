@@ -23,18 +23,28 @@
 import { Server as SocketServer } from 'socket.io';
 import { callsService } from './calls.service';
 import type { AuthenticatedSocket } from '../../config/socket';
+import { socketRateLimit } from '../../shared/utils/socketRateLimiter';
 
 export function registerCallHandlers(io: SocketServer) {
   io.on('connection', (socket: AuthenticatedSocket) => {
     const userId = socket.data.userId;
 
     // ── call:initiate ────────────────────────────────────────────────────────
+    // Rate limit: 5 call initiations per minute per user — prevents call harassment.
     socket.on(
       'call:initiate',
       async (
         data: { receiverId: string; type?: 'VOICE' | 'VIDEO' },
         ack?: (result: { success: boolean; data?: unknown; error?: string }) => void,
       ) => {
+        const rl = await socketRateLimit(userId, 'call:initiate', 5, 60);
+        if (!rl.allowed) {
+          const error = `Rate limit exceeded. Retry in ${rl.retryAfter}s.`;
+          if (ack) ack({ success: false, error });
+          socket.emit('rate_limited', { event: 'call:initiate', retryAfter: rl.retryAfter });
+          return;
+        }
+
         try {
           const result = await callsService.initiateCall(userId, {
             receiverId: data.receiverId,

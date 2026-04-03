@@ -2,6 +2,7 @@ import { Server as SocketServer } from 'socket.io';
 import { prisma } from '../../config/prisma';
 import { messagingService } from './messaging.service';
 import type { AuthenticatedSocket } from '../../config/socket';
+import { socketRateLimit } from '../../shared/utils/socketRateLimiter';
 
 export function registerMessagingHandlers(io: SocketServer) {
   io.on('connection', async (socket: AuthenticatedSocket) => {
@@ -47,16 +48,21 @@ export function registerMessagingHandlers(io: SocketServer) {
       void socket.leave(`conversation:${conversationId}`);
     });
 
-    /** Typing indicators */
-    socket.on('typing:start', ({ conversationId }: { conversationId: string }) => {
+    /** Typing indicators — max 20 events per 10 s to prevent indicator spam */
+    socket.on('typing:start', async ({ conversationId }: { conversationId: string }) => {
+      const rl = await socketRateLimit(userId, 'typing', 20, 10);
+      if (!rl.allowed) return; // silently drop — no need to error the client for typing
       socket.to(`conversation:${conversationId}`).emit('typing:start', { conversationId, userId });
     });
 
-    socket.on('typing:stop', ({ conversationId }: { conversationId: string }) => {
+    socket.on('typing:stop', async ({ conversationId }: { conversationId: string }) => {
+      const rl = await socketRateLimit(userId, 'typing', 20, 10);
+      if (!rl.allowed) return;
       socket.to(`conversation:${conversationId}`).emit('typing:stop', { conversationId, userId });
     });
 
     /** Real-time message send — persists to DB and broadcasts to room */
+    // Rate limit: 30 messages per minute per user.
     socket.on(
       'message:send',
       async (
@@ -69,6 +75,13 @@ export function registerMessagingHandlers(io: SocketServer) {
         },
         ack?: (result: { success: boolean; message?: unknown; error?: string }) => void,
       ) => {
+        const rl = await socketRateLimit(userId, 'message:send', 30, 60);
+        if (!rl.allowed) {
+          if (ack) ack({ success: false, error: `Rate limit exceeded. Retry in ${rl.retryAfter}s.` });
+          socket.emit('rate_limited', { event: 'message:send', retryAfter: rl.retryAfter });
+          return;
+        }
+
         try {
           const message = await messagingService.sendMessage(userId, data.conversationId, {
             content: data.content,
