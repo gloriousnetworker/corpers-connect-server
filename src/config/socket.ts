@@ -1,5 +1,5 @@
 import { Server as HttpServer } from 'http';
-import { Server as SocketServer, Socket } from 'socket.io';
+import { Server as SocketServer, Socket, Namespace } from 'socket.io';
 import { jwtService } from '../shared/services/jwt.service';
 import { env } from './env';
 
@@ -13,22 +13,15 @@ export interface AuthenticatedSocket extends Socket {
 }
 
 let io: SocketServer;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let messagingNs: Namespace<any, any, any, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let callsNs: Namespace<any, any, any, any>;
 
-export function initSocket(httpServer: HttpServer): SocketServer {
-  io = new SocketServer(httpServer, {
-    cors: {
-      origin: env.ALLOWED_ORIGINS,
-      credentials: true,
-      methods: ['GET', 'POST'],
-    },
-    // Use polling as fallback for Railway (no sticky sessions needed with polling)
-    transports: ['websocket', 'polling'],
-  });
-
-  // ── JWT Auth Middleware ────────────────────────────────────────────────────
-  io.use(async (socket: AuthenticatedSocket, next) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyAuthMiddleware(ns: Namespace<any, any, any, any>) {
+  ns.use(async (socket: AuthenticatedSocket, next) => {
     try {
-      // Accept token from headers (Authorization: Bearer <token>) or auth object
       const token =
         (socket.handshake.headers.authorization as string)?.split(' ')[1] ??
         (socket.handshake.auth?.token as string);
@@ -51,6 +44,23 @@ export function initSocket(httpServer: HttpServer): SocketServer {
       next(new Error('Invalid token'));
     }
   });
+}
+
+export function initSocket(httpServer: HttpServer): SocketServer {
+  io = new SocketServer(httpServer, {
+    cors: {
+      origin: env.ALLOWED_ORIGINS,
+      credentials: true,
+      methods: ['GET', 'POST'],
+    },
+    transports: ['websocket', 'polling'],
+  });
+
+  messagingNs = io.of('/messaging');
+  callsNs = io.of('/calls');
+
+  applyAuthMiddleware(messagingNs);
+  applyAuthMiddleware(callsNs);
 
   return io;
 }
@@ -58,4 +68,16 @@ export function initSocket(httpServer: HttpServer): SocketServer {
 export function getIO(): SocketServer {
   if (!io) throw new Error('Socket.IO not initialised — call initSocket() first');
   return io;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getMessagingNamespace(): Namespace<any, any, any, any> {
+  if (!messagingNs) throw new Error('Messaging namespace not initialised');
+  return messagingNs;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getCallsNamespace(): Namespace<any, any, any, any> {
+  if (!callsNs) throw new Error('Calls namespace not initialised');
+  return callsNs;
 }

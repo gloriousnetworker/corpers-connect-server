@@ -20,13 +20,14 @@
  *   call:error      { callId?, message }
  */
 
-import { Server as SocketServer } from 'socket.io';
+import type { Namespace } from 'socket.io';
 import { callsService } from './calls.service';
 import type { AuthenticatedSocket } from '../../config/socket';
 import { socketRateLimit } from '../../shared/utils/socketRateLimiter';
 
-export function registerCallHandlers(io: SocketServer) {
-  io.on('connection', (socket: AuthenticatedSocket) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function registerCallHandlers(ns: Namespace<any, any, any, any>) {
+  ns.on('connection', (socket: AuthenticatedSocket) => {
     const userId = socket.data.userId;
 
     // ── call:initiate ────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ export function registerCallHandlers(io: SocketServer) {
           const { callLog, callerToken, receiverToken, channelName, appId } = result;
 
           // Notify receiver
-          io.to(`user:${data.receiverId}`).emit('call:incoming', {
+          ns.to(`user:${data.receiverId}`).emit('call:incoming', {
             callId: callLog.id,
             callerId: userId,
             caller: callLog.caller,
@@ -85,7 +86,7 @@ export function registerCallHandlers(io: SocketServer) {
           const result = await callsService.acceptCall(data.callId, userId);
 
           // Notify the caller that their call was accepted
-          io.to(`user:${result.callLog.callerId}`).emit('call:accepted', {
+          ns.to(`user:${result.callLog.callerId}`).emit('call:accepted', {
             callId: data.callId,
             channelName: result.channelName,
             token: result.token,
@@ -112,7 +113,7 @@ export function registerCallHandlers(io: SocketServer) {
           const updated = await callsService.rejectCall(data.callId, userId);
 
           // Notify the caller
-          io.to(`user:${updated.callerId}`).emit('call:rejected', { callId: data.callId });
+          ns.to(`user:${updated.callerId}`).emit('call:rejected', { callId: data.callId });
 
           if (ack) ack({ success: true });
         } catch (err) {
@@ -137,7 +138,7 @@ export function registerCallHandlers(io: SocketServer) {
             updated.callerId === userId ? updated.receiverId : updated.callerId;
 
           // Notify the other party
-          io.to(`user:${otherPartyId}`).emit('call:ended', {
+          ns.to(`user:${otherPartyId}`).emit('call:ended', {
             callId: data.callId,
             duration: updated.duration,
           });
@@ -162,7 +163,7 @@ export function registerCallHandlers(io: SocketServer) {
           const updated = await callsService.missCall(data.callId);
 
           // Notify receiver that the call was missed
-          io.to(`user:${updated.receiverId}`).emit('call:missed', { callId: data.callId });
+          ns.to(`user:${updated.receiverId}`).emit('call:missed', { callId: data.callId });
 
           if (ack) ack({ success: true });
         } catch (err) {
@@ -184,7 +185,7 @@ export function registerCallHandlers(io: SocketServer) {
           const updated = await callsService.rejectCall(data.callId, userId);
 
           // Notify caller that receiver is busy
-          io.to(`user:${updated.callerId}`).emit('call:busy', { callId: data.callId });
+          ns.to(`user:${updated.callerId}`).emit('call:busy', { callId: data.callId });
 
           if (ack) ack({ success: true });
         } catch (err) {

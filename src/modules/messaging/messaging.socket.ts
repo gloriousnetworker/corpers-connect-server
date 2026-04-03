@@ -1,11 +1,12 @@
-import { Server as SocketServer } from 'socket.io';
+import type { Namespace } from 'socket.io';
 import { prisma } from '../../config/prisma';
 import { messagingService } from './messaging.service';
 import type { AuthenticatedSocket } from '../../config/socket';
 import { socketRateLimit } from '../../shared/utils/socketRateLimiter';
 
-export function registerMessagingHandlers(io: SocketServer) {
-  io.on('connection', async (socket: AuthenticatedSocket) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function registerMessagingHandlers(ns: Namespace<any, any, any, any>) {
+  ns.on('connection', async (socket: AuthenticatedSocket) => {
     const userId = socket.data.userId;
 
     console.info(`🔌 Socket connected: userId=${userId} socketId=${socket.id}`);
@@ -91,7 +92,7 @@ export function registerMessagingHandlers(io: SocketServer) {
           });
 
           // Broadcast to all participants in the room
-          io.to(`conversation:${data.conversationId}`).emit('message:new', message);
+          ns.to(`conversation:${data.conversationId}`).emit('message:new', message);
 
           if (ack) ack({ success: true, message });
         } catch (err) {
@@ -131,7 +132,7 @@ export function registerMessagingHandlers(io: SocketServer) {
       console.info(`🔌 Socket disconnected: userId=${userId} reason=${reason}`);
 
       // If no other sockets for this user, mark offline
-      const sockets = await io.fetchSockets();
+      const sockets = await ns.fetchSockets();
       const stillConnected = sockets.some(
         (s) => (s as unknown as AuthenticatedSocket).data?.userId === userId,
       );
@@ -139,7 +140,7 @@ export function registerMessagingHandlers(io: SocketServer) {
       if (!stillConnected) {
         try {
           await messagingService.setOffline(userId);
-          io.emit('user:offline', { userId });
+          ns.emit('user:offline', { userId });
         } catch {
           // Non-fatal
         }

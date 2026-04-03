@@ -4,11 +4,11 @@ import { NotFoundError, ForbiddenError } from '../../shared/utils/errors';
 import { NotificationType } from '@prisma/client';
 import type { ListNotificationsDto } from './notifications.validation';
 
-// Try to get Socket.IO instance; may be null during tests
-function tryGetIO() {
+// Try to get the messaging namespace; may be null during tests / before init
+function tryGetMessagingNs() {
   try {
-    const { getIO } = require('../../config/socket');
-    return getIO();
+    const { getMessagingNamespace } = require('../../config/socket');
+    return getMessagingNamespace();
   } catch {
     return null;
   }
@@ -47,7 +47,7 @@ export const notificationsService = {
     });
 
     // Emit real-time event to recipient's personal room
-    const io = tryGetIO();
+    const io = tryGetMessagingNs();
     if (io) {
       io.to(`user:${input.recipientId}`).emit('notification:new', notification);
     }

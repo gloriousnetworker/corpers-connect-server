@@ -8,7 +8,7 @@ import { env } from './config/env';
 import { redis } from './config/redis';
 import { prisma } from './config/prisma';
 import app from './app';
-import { initSocket } from './config/socket';
+import { initSocket, getMessagingNamespace, getCallsNamespace } from './config/socket';
 import { registerMessagingHandlers } from './modules/messaging/messaging.socket';
 import { registerCallHandlers } from './modules/calls/calls.socket';
 import { initWorkers, initSchedulers, closeWorkers } from './jobs';
@@ -29,9 +29,9 @@ async function startServer() {
 
     // Create HTTP server and attach Socket.IO
     const httpServer = createServer(app);
-    const io = initSocket(httpServer);
-    registerMessagingHandlers(io);
-    registerCallHandlers(io);
+    initSocket(httpServer);
+    registerMessagingHandlers(getMessagingNamespace());
+    registerCallHandlers(getCallsNamespace());
 
     // Initialise background jobs (workers + cron schedulers)
     if (env.NODE_ENV !== 'test') {
