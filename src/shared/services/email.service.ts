@@ -3,9 +3,7 @@ import { env } from '../../config/env';
 
 // IPv4 is forced at DNS level via dns.setDefaultResultOrder('ipv4first') in server.ts
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // STARTTLS
+  service: 'gmail',
   auth: {
     user: env.GMAIL_USER,
     pass: env.GMAIL_APP_PASSWORD,
