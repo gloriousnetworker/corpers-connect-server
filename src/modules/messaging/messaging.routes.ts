@@ -61,6 +61,11 @@ router.delete('/:conversationId/participants/:userId', messagingController.remov
  */
 router.post('/:conversationId/messages', messagingController.sendMessage);
 
+/** GET /api/v1/conversations/:conversationId/messages/search
+ *  Full-text search within a conversation. Query: ?q=&cursor=&limit=20
+ */
+router.get('/:conversationId/messages/search', messagingController.searchMessages);
+
 /** GET /api/v1/conversations/:conversationId/messages
  *  Paginated message history (newest first). Query: ?cursor=&limit=30
  */

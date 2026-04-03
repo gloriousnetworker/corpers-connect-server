@@ -152,6 +152,24 @@ export const messagingController = {
     }
   },
 
+  async searchMessages(req: Request, res: Response, next: NextFunction) {
+    try {
+      const q = typeof req.query.q === 'string' ? req.query.q : '';
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const limit = req.query.limit ? Math.min(Number(req.query.limit), 50) : 20;
+      const data = await messagingService.searchMessages(
+        req.user!.id,
+        p(req.params.conversationId),
+        q,
+        cursor,
+        limit,
+      );
+      sendSuccess(res, data, 'Messages found');
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async editMessage(req: Request, res: Response, next: NextFunction) {
     try {
       const { content } = editMessageSchema.parse(req.body);

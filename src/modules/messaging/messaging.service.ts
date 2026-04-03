@@ -332,6 +332,34 @@ export const messagingService = {
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
   },
 
+  async searchMessages(
+    userId: string,
+    conversationId: string,
+    q: string,
+    cursor?: string,
+    limit = 20,
+  ) {
+    await assertParticipant(conversationId, userId);
+    if (!q.trim()) return { items: [], nextCursor: null, hasMore: false };
+
+    const rows = await prisma.message.findMany({
+      where: {
+        conversationId,
+        isDeleted: false,
+        NOT: { deletedFor: { has: userId } },
+        content: { contains: q.trim(), mode: 'insensitive' },
+      },
+      take: limit + 1,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      orderBy: { createdAt: 'desc' },
+      include: { sender: { select: SENDER_SELECT } },
+    });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
+  },
+
   async editMessage(userId: string, conversationId: string, messageId: string, content: string) {
     const message = await prisma.message.findUnique({ where: { id: messageId } });
     if (!message || message.conversationId !== conversationId) {
