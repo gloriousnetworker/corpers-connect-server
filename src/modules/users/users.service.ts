@@ -8,6 +8,7 @@ import {
 import type { UpdateMeDto, OnboardDto, ChangeEmailInitiateDto } from './users.validation';
 import { otpService } from '../../shared/services/otp.service';
 import { addEmailJob } from '../../jobs';
+import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
 import { notificationsService } from '../notifications/notifications.service';
 
 const DEFAULT_LIMIT = 20;
@@ -92,10 +93,20 @@ export const usersService = {
   },
 
   async updateAvatar(userId: string, imageUrl: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { profilePicture: true },
+    });
+    const oldUrl = user?.profilePicture;
+
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { profilePicture: imageUrl },
     });
+
+    // Delete old avatar from Cloudinary after successful DB update (fire-and-forget)
+    if (oldUrl) void destroyCloudinaryAsset(oldUrl);
+
     return sanitiseOwnProfile(updated as unknown as Record<string, unknown>);
   },
 
@@ -442,6 +453,9 @@ export const usersService = {
         fcmTokens: [],
       },
     });
+
+    // Clean up Cloudinary assets after successful soft-delete (fire-and-forget)
+    if (user.profilePicture) void destroyCloudinaryAsset(user.profilePicture);
   },
 };
 

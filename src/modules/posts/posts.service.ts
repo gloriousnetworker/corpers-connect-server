@@ -6,6 +6,7 @@ import {
 } from '../../shared/utils/errors';
 import type { CreatePostDto, UpdatePostDto } from './posts.validation';
 import { PostVisibility, ReactionType, ReportEntityType } from '@prisma/client';
+import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
 import { notificationsService } from '../notifications/notifications.service';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
@@ -153,6 +154,8 @@ export const postsService = {
     if (!post) throw new NotFoundError('Post not found');
     if (post.authorId !== userId) throw new ForbiddenError('Not your post');
     await prisma.post.delete({ where: { id: postId } });
+    // Clean up post media from Cloudinary (fire-and-forget)
+    for (const url of post.mediaUrls) void destroyCloudinaryAsset(url);
   },
 
   async getUserPosts(

@@ -7,6 +7,7 @@ import {
 } from '../../shared/utils/errors';
 import { ListingCategory, ListingType, ListingStatus } from '@prisma/client';
 import type { CreateListingDto, UpdateListingDto, ListListingsDto } from './marketplace.validation';
+import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
 import { notificationsService } from '../notifications/notifications.service';
 
 const DEFAULT_LIMIT = 20;
@@ -207,8 +208,10 @@ export const marketplaceService = {
   },
 
   async deleteListing(userId: string, listingId: string) {
-    await assertListingOwner(userId, listingId);
+    const listing = await assertListingOwner(userId, listingId);
     await prisma.marketplaceListing.delete({ where: { id: listingId } });
+    // Clean up all listing images from Cloudinary (fire-and-forget)
+    for (const url of listing.images) void destroyCloudinaryAsset(url);
   },
 
   // ── Inquiries ─────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { NotFoundError, ForbiddenError } from '../../shared/utils/errors';
 import { addDays } from 'date-fns';
+import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
 import { notificationsService } from '../notifications/notifications.service';
 
 const AUTHOR_SELECT = {
@@ -115,6 +116,8 @@ export const storiesService = {
     if (!story) throw new NotFoundError('Story not found');
     if (story.authorId !== userId) throw new ForbiddenError('Not your story');
     await prisma.story.delete({ where: { id: storyId } });
+    // Clean up story media from Cloudinary (fire-and-forget)
+    void destroyCloudinaryAsset(story.mediaUrl);
   },
 
   async addHighlight(userId: string, storyId: string, title?: string) {

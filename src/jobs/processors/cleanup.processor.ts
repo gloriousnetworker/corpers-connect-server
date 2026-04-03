@@ -1,20 +1,32 @@
 import { prisma } from '../../config/prisma';
+import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
 
 /**
  * Hard-delete stories whose expiresAt timestamp has passed.
  *
  * Stories are currently filtered on the read-side (getStories excludes expired),
  * but old records accumulate in the DB. This job removes them daily.
+ * Cloudinary assets are cleaned up before deletion.
  */
 export async function deleteExpiredStories(): Promise<{ deleted: number }> {
-  const result = await prisma.story.deleteMany({
+  const expired = await prisma.story.findMany({
     where: { expiresAt: { lt: new Date() } },
+    select: { id: true, mediaUrl: true },
   });
 
-  if (result.count > 0) {
-    console.info(`[cleanup.processor] Deleted ${result.count} expired story/stories`);
+  if (expired.length === 0) return { deleted: 0 };
+
+  await prisma.story.deleteMany({
+    where: { id: { in: expired.map((s) => s.id) } },
+  });
+
+  // Clean up Cloudinary assets (fire-and-forget, failures are non-fatal)
+  for (const story of expired) {
+    void destroyCloudinaryAsset(story.mediaUrl);
   }
-  return { deleted: result.count };
+
+  console.info(`[cleanup.processor] Deleted ${expired.length} expired story/stories`);
+  return { deleted: expired.length };
 }
 
 /**

@@ -113,3 +113,55 @@ export const uploadMediaToCloudinary = (
     );
     stream.end(buffer);
   });
+
+/**
+ * Extract the Cloudinary public_id from a secure_url.
+ * Handles URLs with or without transformations and version strings.
+ *
+ * Example inputs:
+ *   https://res.cloudinary.com/cloud/image/upload/c_fill,w_400/v123/folder/name.webp
+ *   https://res.cloudinary.com/cloud/image/upload/v123/folder/name.webp
+ *   https://res.cloudinary.com/cloud/image/upload/folder/name.webp
+ */
+export function extractCloudinaryPublicId(url: string): string | null {
+  const afterUpload = url.split('/upload/')[1];
+  if (!afterUpload) return null;
+
+  const segments = afterUpload.split('/');
+  // Skip leading transformation segments (contain commas) and version segments (v\d+)
+  let i = 0;
+  while (i < segments.length - 1) {
+    if (segments[i].includes(',') || /^v\d+$/.test(segments[i])) {
+      i++;
+    } else {
+      break;
+    }
+  }
+
+  const publicIdWithExt = segments.slice(i).join('/');
+  // Strip file extension
+  return publicIdWithExt.replace(/\.[^./]+$/, '') || null;
+}
+
+/**
+ * Destroy a Cloudinary asset by URL. Detects resource_type from the URL path.
+ * Fails silently — a cleanup failure should never abort the main DB operation.
+ */
+export async function destroyCloudinaryAsset(url: string): Promise<void> {
+  if (!url || !url.includes('cloudinary.com')) return;
+
+  const publicId = extractCloudinaryPublicId(url);
+  if (!publicId) return;
+
+  const resourceType: 'image' | 'video' | 'raw' = url.includes('/video/upload/')
+    ? 'video'
+    : url.includes('/raw/upload/')
+      ? 'raw'
+      : 'image';
+
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+  } catch (err) {
+    console.warn(`[Cloudinary] Failed to destroy ${publicId}:`, err);
+  }
+}
