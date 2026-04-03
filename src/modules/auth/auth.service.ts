@@ -170,21 +170,45 @@ export const authService = {
 
   // ── 2FA Challenge (login step 2) ─────────────────────────────────────────────
   async complete2FAChallenge(challengeToken: string, code: string) {
-    const { redisHelpers } = await import('../../config/redis');
+    const { redisHelpers, redis } = await import('../../config/redis');
+
+    const attemptsKey = `2fa_attempts:${challengeToken}`;
+    const MAX_ATTEMPTS = 5;
+
     const userId = await redisHelpers.get(`2fa_challenge:${challengeToken}`);
     if (!userId) {
       throw new BadRequestError('2FA challenge expired. Please login again.');
+    }
+
+    // Brute-force guard: track failed attempts against this challenge token.
+    // After MAX_ATTEMPTS failures the token is deleted, forcing a fresh login.
+    const attempts = parseInt((await redisHelpers.get(attemptsKey)) ?? '0', 10);
+    if (attempts >= MAX_ATTEMPTS) {
+      await redisHelpers.del(`2fa_challenge:${challengeToken}`);
+      await redisHelpers.del(attemptsKey);
+      throw new BadRequestError('Too many incorrect attempts. Please login again.');
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedError('Invalid challenge');
 
     const valid = authenticator.verify({ token: code, secret: user.twoFactorSecret });
-    if (!valid) throw new UnauthorizedError('Invalid 2FA code');
+    if (!valid) {
+      // Increment attempt counter with the same TTL as the challenge token (300 s)
+      await redis.set(attemptsKey, attempts + 1, 'EX', 300);
+      const remaining = MAX_ATTEMPTS - (attempts + 1);
+      throw new UnauthorizedError(
+        remaining > 0
+          ? `Invalid 2FA code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+          : 'Invalid 2FA code.',
+      );
+    }
 
+    // Success — clean up both keys
     await redisHelpers.del(`2fa_challenge:${challengeToken}`);
-    const tokens = await createSession(user.id, user.email, 'USER');
+    await redisHelpers.del(attemptsKey);
 
+    const tokens = await createSession(user.id, user.email, 'USER');
     return { user: sanitiseUser(user), ...tokens };
   },
 

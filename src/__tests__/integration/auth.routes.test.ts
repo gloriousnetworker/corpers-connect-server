@@ -296,6 +296,70 @@ describe('Forgot / Reset password flow', () => {
   });
 });
 
+// ── 2FA challenge brute-force protection ───────────────────────────────────────
+describe(`POST ${BASE}/2fa/challenge — brute-force protection`, () => {
+  const CHALLENGE_KEY = (token: string) => `2fa_challenge:${token}`;
+  const ATTEMPTS_KEY  = (token: string) => `2fa_attempts:${token}`;
+  const FAKE_TOKEN    = 'test-challenge-token-12345';
+
+  beforeEach(async () => {
+    // Plant a fake challenge token directly in Redis
+    await redis.set(CHALLENGE_KEY(FAKE_TOKEN), 'nonexistent-user-id', 'EX', 300);
+    await redis.del(ATTEMPTS_KEY(FAKE_TOKEN));
+  });
+
+  afterEach(async () => {
+    await redis.del(CHALLENGE_KEY(FAKE_TOKEN));
+    await redis.del(ATTEMPTS_KEY(FAKE_TOKEN));
+  });
+
+  it('returns 400 for an expired/unknown challenge token', async () => {
+    const res = await request(app)
+      .post(`${BASE}/2fa/challenge`)
+      .send({ userId: 'totally-unknown-token', code: '123456' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 immediately when attempt counter is already at MAX_ATTEMPTS', async () => {
+    // Counter at 5 — lockout check fires before any DB or TOTP work
+    await redis.set(ATTEMPTS_KEY(FAKE_TOKEN), '5', 'EX', 300);
+
+    const res = await request(app)
+      .post(`${BASE}/2fa/challenge`)
+      .send({ userId: FAKE_TOKEN, code: '000000' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/too many/i);
+  });
+
+  it('deletes both challenge and attempts keys when lockout fires', async () => {
+    await redis.set(ATTEMPTS_KEY(FAKE_TOKEN), '5', 'EX', 300);
+
+    await request(app)
+      .post(`${BASE}/2fa/challenge`)
+      .send({ userId: FAKE_TOKEN, code: '000000' });
+
+    expect(await redis.get(CHALLENGE_KEY(FAKE_TOKEN))).toBeNull();
+    expect(await redis.get(ATTEMPTS_KEY(FAKE_TOKEN))).toBeNull();
+  });
+
+  it('returns 401 (not 400) before the lockout threshold is reached', async () => {
+    // Only 1 prior attempt — counter is below MAX, so no lockout
+    await redis.set(ATTEMPTS_KEY(FAKE_TOKEN), '1', 'EX', 300);
+
+    const res = await request(app)
+      .post(`${BASE}/2fa/challenge`)
+      .send({ userId: FAKE_TOKEN, code: '000000' });
+
+    // 401 because the fake userId resolves to a non-existent user — not a lockout
+    expect(res.status).toBe(401);
+
+    // Challenge key must still be alive
+    expect(await redis.get(CHALLENGE_KEY(FAKE_TOKEN))).not.toBeNull();
+  });
+});
+
 // ── Input validation ───────────────────────────────────────────────────────────
 describe('Input validation', () => {
   it('rejects weak password on register', async () => {
