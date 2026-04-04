@@ -427,12 +427,12 @@ describe('Message reactions and pin endpoints', () => {
     expect(res.status).toBe(401);
   });
 
-  it('POST reactions — 400 without emoji', async () => {
+  it('POST reactions — 422 without emoji', async () => {
     const res = await request(app)
       .post(`/api/v1/conversations/${convId}/messages/${msgId}/reactions`)
       .set('Authorization', `Bearer ${tokenA}`)
       .send({});
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
   });
 
   it('PATCH pin — pins a message', async () => {
@@ -455,12 +455,12 @@ describe('Message reactions and pin endpoints', () => {
     expect(res.body.data.isPinned).toBe(false);
   });
 
-  it('PATCH pin — 400 without isPinned field', async () => {
+  it('PATCH pin — 422 without isPinned field', async () => {
     const res = await request(app)
       .patch(`/api/v1/conversations/${convId}/messages/${msgId}/pin`)
       .set('Authorization', `Bearer ${tokenA}`)
       .send({});
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
   });
 
   it('POST reactions — 403 when not a participant', async () => {

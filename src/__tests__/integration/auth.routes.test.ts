@@ -127,7 +127,9 @@ describe(`Registration flow`, () => {
 
     expect(res.status).toBe(201);
     expect(res.body.data.accessToken).toBeTruthy();
-    expect(res.body.data.refreshToken).toBeTruthy();
+    // refreshToken is now an httpOnly cookie, not in the response body
+    const regCookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+    expect(regCookies.some((c) => c.startsWith('cc_refresh_token='))).toBe(true);
     expect(res.body.data.user.stateCode).toBe(TEST_STATE_CODE);
     // Sensitive fields must NOT be in response
     expect(res.body.data.user.passwordHash).toBeUndefined();
@@ -149,7 +151,7 @@ describe(`Registration flow`, () => {
 // ── Login ──────────────────────────────────────────────────────────────────────
 describe(`POST ${BASE}/login`, () => {
   let accessToken: string;
-  let refreshToken: string;
+  let refreshCookie: string;
 
   it('logs in with state code', async () => {
     const res = await request(app)
@@ -161,7 +163,9 @@ describe(`POST ${BASE}/login`, () => {
     expect(res.body.data.accessToken).toBeTruthy();
     expect(res.body.data.user.passwordHash).toBeUndefined();
     accessToken = res.body.data.accessToken;
-    refreshToken = res.body.data.refreshToken;
+    // refreshToken is now a httpOnly cookie
+    const setCookie = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+    refreshCookie = setCookie.find((c) => c.startsWith('cc_refresh_token=')) ?? '';
   });
 
   it('logs in with email', async () => {
@@ -206,9 +210,10 @@ describe(`POST ${BASE}/login`, () => {
 
   // ── Token refresh ───────────────────────────────────────────────────────────
   it('POST /refresh — returns new token pair', async () => {
+    // refreshToken is sent as a cookie (httpOnly migration from #7)
     const res = await request(app)
       .post(`${BASE}/refresh`)
-      .send({ refreshToken });
+      .set('Cookie', refreshCookie);
 
     expect(res.status).toBe(200);
     expect(res.body.data.accessToken).toBeTruthy();

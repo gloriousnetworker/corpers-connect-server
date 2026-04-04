@@ -8,7 +8,7 @@ jest.mock('../../config/prisma', () => ({
   prisma: {
     subscription: { findMany: jest.fn(), update: jest.fn() },
     user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
-    story: { deleteMany: jest.fn() },
+    story: { findMany: jest.fn(), deleteMany: jest.fn() },
     notification: { deleteMany: jest.fn() },
   },
 }));
@@ -197,21 +197,27 @@ describe('deleteExpiredStories', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('returns zero when no expired stories exist', async () => {
-    (mockPrisma.story.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
+    (mockPrisma.story.findMany as jest.Mock).mockResolvedValue([]);
 
     const result = await deleteExpiredStories();
 
     expect(result).toEqual({ deleted: 0 });
+    expect(mockPrisma.story.deleteMany).not.toHaveBeenCalled();
   });
 
   it('deletes expired stories and returns count', async () => {
-    (mockPrisma.story.deleteMany as jest.Mock).mockResolvedValue({ count: 5 });
+    const expired = [
+      { id: 's1', mediaUrl: 'https://res.cloudinary.com/test/image/upload/v1/s1.jpg' },
+      { id: 's2', mediaUrl: 'https://res.cloudinary.com/test/image/upload/v1/s2.jpg' },
+    ];
+    (mockPrisma.story.findMany as jest.Mock).mockResolvedValue(expired);
+    (mockPrisma.story.deleteMany as jest.Mock).mockResolvedValue({ count: 2 });
 
     const result = await deleteExpiredStories();
 
-    expect(result).toEqual({ deleted: 5 });
+    expect(result).toEqual({ deleted: 2 });
     expect(mockPrisma.story.deleteMany).toHaveBeenCalledWith({
-      where: { expiresAt: { lt: expect.any(Date) } },
+      where: { id: { in: ['s1', 's2'] } },
     });
   });
 });

@@ -8,9 +8,10 @@ jest.mock('../../config/prisma', () => ({
   prisma: {
     adminUser: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
     user: { count: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },
-    post: { count: jest.fn() },
+    post: { count: jest.fn(), findMany: jest.fn() },
+    story: { findMany: jest.fn() },
     report: { count: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
-    subscription: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    subscription: { count: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     sellerApplication: { count: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     systemSetting: { findMany: jest.fn(), upsert: jest.fn() },
     auditLog: { create: jest.fn(), findMany: jest.fn() },
@@ -120,12 +121,20 @@ describe('adminService.getDashboard', () => {
   it('returns all dashboard stats', async () => {
     (mockPrisma.user.count as jest.Mock)
       .mockResolvedValueOnce(100) // totalUsers
-      .mockResolvedValueOnce(95)  // activeUsers
-      .mockResolvedValueOnce(20); // premiumUsers
+      .mockResolvedValueOnce(95)  // activeUsers (isActive)
+      .mockResolvedValueOnce(20)  // premiumUsers (PREMIUM tier)
+      .mockResolvedValueOnce(5)   // newUsersThisWeek (last 7d)
+      .mockResolvedValueOnce(3);  // prev week users (14d→7d)
     (mockPrisma.post.count as jest.Mock).mockResolvedValue(50);
     (mockPrisma.report.count as jest.Mock).mockResolvedValue(5);
     (mockPrisma.sellerApplication.count as jest.Mock).mockResolvedValue(3);
     (mockPrisma.subscription.count as jest.Mock).mockResolvedValue(20);
+    // findMany calls for chart data — return empty arrays (chart shape is not under test here)
+    (mockPrisma.user.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.subscription.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.post.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.story.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.report.findMany as jest.Mock).mockResolvedValue([]);
 
     const result = await adminService.getDashboard();
     expect(result.totalUsers).toBe(100);
