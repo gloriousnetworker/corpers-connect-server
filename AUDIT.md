@@ -78,7 +78,7 @@ Legend: ✅ Fixed | 🔄 In Progress | ⬜ Open
 | 43 | admin | Login page ignores the `?next` redirect parameter — always navigates to `/dashboard` after login. | ✅ Fixed — admin commit (reads `?next` via `useSearchParams`, validates relative-path-only to prevent open redirect) |
 | 44 | admin | No logout API call — token is not blacklisted server-side when the admin signs out. | ✅ FALSE POSITIVE — `adminLogout()` API call already present in `useAdminAuth.ts` logout handler. |
 | 45 | admin | No error boundary on admin pages — an uncaught render error silently breaks the whole page. | ✅ FALSE POSITIVE — `src/app/(admin)/error.tsx` is Next.js App Router's built-in error boundary with UI + reset button. |
-| 46 | admin | Admin accounts have no 2FA. High-privilege accounts should require MFA. | ⬜ |
+| 46 | admin | Admin accounts have no 2FA. High-privilege accounts should require MFA. | ✅ Fixed — backend commit 565467c · admin commit 1ca7202 (TOTP setup/disable on /security page, login challenge step, 5-attempt brute-force guard) |
 
 ---
 
