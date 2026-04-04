@@ -24,11 +24,13 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES: z.string().default('15m'),
   JWT_REFRESH_EXPIRES: z.string().default('7d'),
 
-  // Email — Gmail SMTP (temporary until custom domain is verified)
-  GMAIL_USER: z.string().email('GMAIL_USER must be a valid Gmail address'),
-  GMAIL_APP_PASSWORD: z.string().min(1, 'GMAIL_APP_PASSWORD is required'),
-  // Resend kept in env for future use when custom domain is verified
-  RESEND_API_KEY: z.string().optional(),
+  // Email — Resend HTTP API (works on Railway; SMTP is blocked by the platform)
+  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
+  // Sender address — must be a domain verified in your Resend account.
+  // Use the Resend-provided onboarding address until your own domain is verified:
+  // "Corpers Connect <onboarding@resend.dev>"  (only delivers to the account owner's email)
+  // For production use a verified domain e.g. "Corpers Connect <noreply@corpers-connect.ng>"
+  EMAIL_FROM: z.string().default('Corpers Connect <onboarding@resend.dev>'),
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: z.string().min(1, 'CLOUDINARY_CLOUD_NAME is required'),
