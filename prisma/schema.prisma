@@ -710,8 +710,9 @@ model Subscription {
   amountKobo   Int
   startDate    DateTime
   endDate      DateTime
-  paystackRef  String?
-  status       SubscriptionStatus @default(ACTIVE)
+  paystackRef      String?
+  paystackAuthCode String?   // stored after first charge for auto-renewal
+  status           SubscriptionStatus @default(ACTIVE)
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 

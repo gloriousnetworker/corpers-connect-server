@@ -15,13 +15,26 @@ export type SendWelcomeJobData = {
   defaultPassword?: string;
 };
 
-export type EmailJobData = SendOtpJobData | SendWelcomeJobData;
+export type SendRenewalSuccessJobData = {
+  type: 'SEND_RENEWAL_SUCCESS';
+  to: string;
+  name: string;
+  endDate: string;
+};
+
+export type SendRenewalFailedJobData = {
+  type: 'SEND_RENEWAL_FAILED';
+  to: string;
+  name: string;
+};
+
+export type EmailJobData = SendOtpJobData | SendWelcomeJobData | SendRenewalSuccessJobData | SendRenewalFailedJobData;
 
 // ── Subscription Job ──────────────────────────────────────────────────────────
 
-export type SubscriptionJobData = {
-  type: 'EXPIRE_SUBSCRIPTIONS';
-};
+export type SubscriptionJobData =
+  | { type: 'EXPIRE_SUBSCRIPTIONS' }
+  | { type: 'RENEW_SUBSCRIPTIONS' };
 
 // ── Level Job ─────────────────────────────────────────────────────────────────
 

@@ -91,6 +91,71 @@ export const emailService = {
     console.info(`[EMAIL] ${purpose} OTP → ${to} | messageId: ${info.messageId}`);
   },
 
+  async sendRenewalSuccess(to: string, name: string, endDate: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const safeDate = escapeHtml(new Date(endDate).toLocaleDateString('en-NG', { dateStyle: 'long' }));
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"Corpers Connect" <${env.GMAIL_USER}>`,
+      to,
+      subject: 'Your Corpers Connect subscription has been renewed',
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+            <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; padding: 32px;">
+              <div style="text-align: center; margin-bottom: 24px;">
+                <h1 style="color: #008751; margin: 0;">Corpers Connect</h1>
+              </div>
+              <p>Hello <strong>${safeName}</strong>,</p>
+              <p>Your <strong>Premium</strong> subscription has been automatically renewed. ✅</p>
+              <p>Your new expiry date is <strong>${safeDate}</strong>.</p>
+              <p>Thank you for being part of the Corpers Connect community!</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+              <p style="color: #999; font-size: 12px; text-align: center;">
+                © ${new Date().getFullYear()} Corpers Connect
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+  },
+
+  async sendRenewalFailed(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"Corpers Connect" <${env.GMAIL_USER}>`,
+      to,
+      subject: 'Action required: Corpers Connect subscription renewal failed',
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+            <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; padding: 32px;">
+              <div style="text-align: center; margin-bottom: 24px;">
+                <h1 style="color: #008751; margin: 0;">Corpers Connect</h1>
+              </div>
+              <p>Hello <strong>${safeName}</strong>,</p>
+              <p>We were unable to automatically renew your <strong>Premium</strong> subscription. ⚠️</p>
+              <p>Your account will revert to the free tier when your current plan expires.</p>
+              <p>
+                To continue enjoying Premium features, please
+                <a href="${env.CLIENT_URL}/subscription" style="color: #008751;">renew your subscription</a>
+                manually.
+              </p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+              <p style="color: #999; font-size: 12px; text-align: center;">
+                © ${new Date().getFullYear()} Corpers Connect
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+  },
+
   async sendWelcome(to: string, name: string, defaultPassword: string): Promise<void> {
     const safeName     = escapeHtml(name);
     const safeTo       = escapeHtml(to);

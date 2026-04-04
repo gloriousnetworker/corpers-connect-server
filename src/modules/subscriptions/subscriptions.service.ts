@@ -18,6 +18,7 @@ interface PaystackVerifyData {
   reference: string;
   amount: number;
   metadata: { userId?: string; plan?: string };
+  authorization?: { authorization_code: string; email: string };
 }
 
 // ── Level progression helper ───────────────────────────────────────────────────
@@ -124,6 +125,7 @@ export const subscriptionsService = {
       meta.plan as keyof typeof PLANS,
       dto.reference,
       response.data.amount,
+      response.data.authorization?.authorization_code,
     );
   },
 
@@ -158,6 +160,7 @@ export const subscriptionsService = {
       metadata.plan as keyof typeof PLANS,
       reference,
       amount,
+      payload.data.authorization?.authorization_code,
     );
 
     return { received: true };
@@ -170,6 +173,7 @@ export const subscriptionsService = {
     plan: keyof typeof PLANS,
     reference: string,
     amountKobo: number,
+    paystackAuthCode?: string,
   ) {
     const planConfig = PLANS[plan];
     const startDate = new Date();
@@ -194,6 +198,7 @@ export const subscriptionsService = {
           endDate,
           paystackRef: reference,
           status: 'ACTIVE',
+          ...(paystackAuthCode && { paystackAuthCode }),
         },
       });
 

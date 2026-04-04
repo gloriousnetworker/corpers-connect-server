@@ -8,6 +8,7 @@ import { subscriptionQueue, levelQueue, cleanupQueue } from './queues';
  *
  * Schedules:
  *   expire-subscriptions      → every hour          (0 * * * *)
+ *   renew-subscriptions       → daily at 03:00       (0 3 * * *)
  *   check-level-promotions    → every 6 hours        (0 *\/6 * * *)
  *   delete-expired-stories    → daily at 02:00       (0 2 * * *)
  *   delete-old-notifications  → daily at 02:15       (15 2 * * *)
@@ -20,6 +21,16 @@ export async function initSchedulers(): Promise<void> {
     {
       repeat: { pattern: '0 * * * *' },
       jobId: 'expire-subscriptions-cron',
+    },
+  );
+
+  // ── Subscription auto-renewal (daily at 03:00) ────────────────────────────
+  await subscriptionQueue.add(
+    'renew-subscriptions',
+    { type: 'RENEW_SUBSCRIPTIONS' },
+    {
+      repeat: { pattern: '0 3 * * *' },
+      jobId: 'renew-subscriptions-cron',
     },
   );
 

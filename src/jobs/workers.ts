@@ -2,7 +2,7 @@ import { Worker } from 'bullmq';
 import { bullmqConnection } from '../config/bullmq';
 import { QUEUE_NAMES } from './types';
 import { processEmailJob } from './processors/email.processor';
-import { expireSubscriptions } from './processors/subscription.processor';
+import { expireSubscriptions, renewSubscriptions } from './processors/subscription.processor';
 import { checkLevelPromotions } from './processors/level.processor';
 import { deleteExpiredStories, deleteOldNotifications } from './processors/cleanup.processor';
 
@@ -26,7 +26,8 @@ export function initWorkers(): void {
   // ── Subscription maintenance worker ────────────────────────────────────────
   subscriptionWorker = new Worker(
     QUEUE_NAMES.SUBSCRIPTION,
-    async () => {
+    async (job) => {
+      if (job.data?.type === 'RENEW_SUBSCRIPTIONS') return renewSubscriptions();
       return expireSubscriptions();
     },
     { connection: bullmqConnection, concurrency: 1 },
