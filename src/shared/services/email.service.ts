@@ -11,14 +11,15 @@ let _transporter: nodemailer.Transporter | null = null;
 
 function getTransporter(): nodemailer.Transporter {
   if (_transporter) return _transporter;
-  // Force IPv4 — Railway does not route outbound IPv6 traffic.
-  // nodemailer's SMTPTransport.Options doesn't type `lookup` but the underlying
-  // net.createConnection accepts it. We cast to any to pass it through.
+  // Port 587 + STARTTLS — Railway blocks outbound 465 (SSL), 587 is open.
+  // requireTLS ensures the connection upgrades to TLS even though secure:false.
+  // IPv4 forced via custom lookup — Railway has no outbound IPv6 routing.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transportOptions: any = {
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: {
       user: env.GMAIL_USER,
       pass: env.GMAIL_APP_PASSWORD,
