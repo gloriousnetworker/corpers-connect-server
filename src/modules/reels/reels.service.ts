@@ -58,6 +58,7 @@ export const reelsService = {
       where: {
         postType: 'REEL',
         isFlagged: false,
+        isDeleted: false,
         OR: [
           { authorId: userId },
           {
@@ -102,6 +103,7 @@ export const reelsService = {
         postType: 'REEL',
         visibility: PostVisibility.PUBLIC,
         isFlagged: false,
+        isDeleted: false,
         authorId: { notIn: blockedIds },
       },
       take: limit + 1,
@@ -129,7 +131,7 @@ export const reelsService = {
   /** Get a single reel */
   async getReel(reelId: string) {
     const reel = await prisma.post.findUnique({
-      where: { id: reelId },
+      where: { id: reelId, isDeleted: false },
       include: {
         author: { select: AUTHOR_SELECT },
         _count: { select: { reactions: true, comments: true } },

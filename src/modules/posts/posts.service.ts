@@ -75,7 +75,7 @@ export const postsService = {
 
   async getPost(requesterId: string | undefined, postId: string) {
     const post = await prisma.post.findUnique({
-      where: { id: postId },
+      where: { id: postId, isDeleted: false },
       include: {
         author: { select: { ...AUTHOR_SELECT, isActive: true } },
         _count: { select: { reactions: true, comments: true } },
@@ -122,7 +122,7 @@ export const postsService = {
   },
 
   async updatePost(userId: string, postId: string, dto: UpdatePostDto) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
     if (post.authorId !== userId) throw new ForbiddenError('Not your post');
 
@@ -146,10 +146,13 @@ export const postsService = {
   },
 
   async deletePost(userId: string, postId: string) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
     if (post.authorId !== userId) throw new ForbiddenError('Not your post');
-    await prisma.post.delete({ where: { id: postId } });
+    await prisma.post.update({
+      where: { id: postId },
+      data: { isDeleted: true, deletedAt: new Date() },
+    });
     // Clean up post media from Cloudinary (fire-and-forget)
     for (const url of post.mediaUrls) void destroyCloudinaryAsset(url);
   },
@@ -199,6 +202,7 @@ export const postsService = {
         authorId: targetUserId,
         visibility: { in: allowedVisibilities },
         isFlagged: false,
+        isDeleted: false,
       },
       take: limit + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
@@ -215,7 +219,7 @@ export const postsService = {
   },
 
   async sharePost(userId: string, postId: string) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
     return prisma.post.update({
@@ -226,7 +230,7 @@ export const postsService = {
   },
 
   async reportPost(reporterId: string, postId: string, reason: string, details?: string) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
     if (post.authorId === reporterId) throw new BadRequestError('Cannot report your own post');
 
@@ -244,7 +248,7 @@ export const postsService = {
   // ── Reactions ────────────────────────────────────────────────────────────────
 
   async react(userId: string, postId: string, type: ReactionType) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
     await prisma.postReaction.upsert({
@@ -268,7 +272,7 @@ export const postsService = {
   },
 
   async getReactions(postId: string, cursor?: string, limit = DEFAULT_LIMIT) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
     const rows = await prisma.postReaction.findMany({
@@ -295,7 +299,7 @@ export const postsService = {
   // ── Comments ─────────────────────────────────────────────────────────────────
 
   async addComment(userId: string, postId: string, content: string, parentId?: string) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
     if (parentId) {
@@ -345,7 +349,7 @@ export const postsService = {
     const comment = await prisma.comment.findUnique({ where: { id: commentId } });
     if (!comment || comment.postId !== postId) throw new NotFoundError('Comment not found');
 
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     const isAuthor = comment.authorId === userId;
     const isPostOwner = post?.authorId === userId;
     if (!isAuthor && !isPostOwner) throw new ForbiddenError('Cannot delete this comment');
@@ -354,7 +358,7 @@ export const postsService = {
   },
 
   async getComments(postId: string, cursor?: string, limit = DEFAULT_LIMIT) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
     const rows = await prisma.comment.findMany({
@@ -423,7 +427,7 @@ export const postsService = {
   // ── Bookmarks ────────────────────────────────────────────────────────────────
 
   async bookmark(userId: string, postId: string) {
-    const post = await prisma.post.findUnique({ where: { id: postId } });
+    const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
     await prisma.bookmark.upsert({
@@ -439,7 +443,7 @@ export const postsService = {
 
   async getBookmarks(userId: string, cursor?: string, limit = DEFAULT_LIMIT) {
     const rows = await prisma.bookmark.findMany({
-      where: { userId },
+      where: { userId, post: { isDeleted: false } },
       take: limit + 1,
       ...(cursor && { cursor: { userId_postId: { userId, postId: cursor } }, skip: 1 }),
       orderBy: { createdAt: 'desc' },

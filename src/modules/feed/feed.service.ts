@@ -35,6 +35,7 @@ export const feedService = {
     const rows = await prisma.post.findMany({
       where: {
         isFlagged: false,
+        isDeleted: false,
         author: { isActive: true, id: { notIn: blockedIds } },
         OR: [
           // Own posts (any visibility)
