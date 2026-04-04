@@ -87,24 +87,20 @@ export const postsService = {
 
     if (!post || !post.author.isActive) throw new NotFoundError('Post not found');
 
-    // Block check
-    if (requesterId) {
-      const blockedIds = await getBlockedIds(requesterId);
-      if (blockedIds.includes(post.authorId)) throw new NotFoundError('Post not found');
-    }
-
-    // Visibility check
+    // Block + visibility checks — all three lookups in a single round-trip
     let viewerState: string | undefined;
     let followedIds: string[] = [];
     if (requesterId) {
-      const viewer = await prisma.user.findUnique({
-        where: { id: requesterId },
-        select: { servingState: true },
-      });
+      const [blockedIds, viewer, followed] = await Promise.all([
+        getBlockedIds(requesterId),
+        prisma.user.findUnique({ where: { id: requesterId }, select: { servingState: true } }),
+        prisma.follow
+          .findMany({ where: { followerId: requesterId }, select: { followingId: true } })
+          .then((rows) => rows.map((r) => r.followingId)),
+      ]);
+      if (blockedIds.includes(post.authorId)) throw new NotFoundError('Post not found');
       viewerState = viewer?.servingState;
-      followedIds = await prisma.follow
-        .findMany({ where: { followerId: requesterId }, select: { followingId: true } })
-        .then((rows) => rows.map((r) => r.followingId));
+      followedIds = followed;
     }
 
     const { isActive: _ia, ...safeAuthor } = post.author;
@@ -170,26 +166,22 @@ export const postsService = {
     });
     if (!target || !target.isActive) throw new NotFoundError('User not found');
 
-    // Block check
-    if (requesterId) {
-      const blockedIds = await getBlockedIds(requesterId);
-      if (blockedIds.includes(targetUserId)) throw new NotFoundError('User not found');
-    }
-
-    // Determine which visibilities are accessible
+    // Block + follow + viewer state — all lookups in a single round-trip
     let isFollowing = false;
     let isSameState = false;
     const isOwn = requesterId === targetUserId;
 
     if (requesterId && !isOwn) {
-      const viewer = await prisma.user.findUnique({
-        where: { id: requesterId },
-        select: { servingState: true },
-      });
+      const [blockedIds, viewer, followRow] = await Promise.all([
+        getBlockedIds(requesterId),
+        prisma.user.findUnique({ where: { id: requesterId }, select: { servingState: true } }),
+        prisma.follow.findUnique({
+          where: { followerId_followingId: { followerId: requesterId, followingId: targetUserId } },
+        }),
+      ]);
+      if (blockedIds.includes(targetUserId)) throw new NotFoundError('User not found');
       isSameState = viewer?.servingState === target.servingState;
-      isFollowing = !!(await prisma.follow.findUnique({
-        where: { followerId_followingId: { followerId: requesterId, followingId: targetUserId } },
-      }));
+      isFollowing = !!followRow;
     }
 
     const allowedVisibilities: PostVisibility[] = isOwn

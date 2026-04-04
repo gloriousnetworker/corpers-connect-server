@@ -17,24 +17,20 @@ const AUTHOR_SELECT = {
 
 export const feedService = {
   async getHomeFeed(userId: string, cursor?: string, limit = DEFAULT_LIMIT) {
-    const me = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { servingState: true },
-    });
+    // Fetch user profile, followed IDs, and blocked IDs in a single round-trip
+    const [me, followedIds, blockedIds] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { servingState: true } }),
+      prisma.follow
+        .findMany({ where: { followerId: userId }, select: { followingId: true } })
+        .then((rows) => rows.map((r) => r.followingId)),
+      prisma.block
+        .findMany({
+          where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+          select: { blockerId: true, blockedId: true },
+        })
+        .then((rows) => rows.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId))),
+    ]);
     if (!me) throw new NotFoundError('User not found');
-
-    // People the user follows
-    const followedIds = await prisma.follow
-      .findMany({ where: { followerId: userId }, select: { followingId: true } })
-      .then((rows) => rows.map((r) => r.followingId));
-
-    // Blocked / blocking IDs
-    const blockedIds = await prisma.block
-      .findMany({
-        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
-        select: { blockerId: true, blockedId: true },
-      })
-      .then((rows) => rows.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
 
     const rows = await prisma.post.findMany({
       where: {
