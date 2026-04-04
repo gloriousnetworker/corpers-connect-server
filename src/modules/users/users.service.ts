@@ -139,13 +139,8 @@ export const usersService = {
     // Generate OTP and send it to the NEW address so the user proves ownership
     const otp = otpService.generate();
     await otpService.store(`email_change_otp:${dto.newEmail}`, otp);
-    await addEmailJob({
-      type: 'SEND_OTP',
-      to: dto.newEmail,
-      name: user.firstName,
-      otp,
-      purpose: 'email-change',
-    });
+    const { emailService } = await import('../../shared/services/email.service');
+    await emailService.sendOTP(dto.newEmail, user.firstName, otp, 'email-change');
 
     const { env } = await import('../../config/env');
     return {
