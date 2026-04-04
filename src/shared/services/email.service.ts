@@ -1,20 +1,36 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 import { env } from '../../config/env';
 
-// ── Lazy transporter (mirrors cbt-simulator-backend pattern) ───────────────
-// Created on first use so env vars are guaranteed to be loaded.
-// IPv4 is forced at DNS level via dns.setDefaultResultOrder('ipv4first') in server.ts
+// ── Lazy transporter ────────────────────────────────────────────────────────
+// Railway blocks outbound IPv6. Using `service: 'gmail'` lets nodemailer do
+// its own DNS lookup which returns an IPv6 address first, causing ENETUNREACH.
+// Fix: skip the 'service' shorthand, use explicit host/port, and override the
+// lookup function to always resolve via dns.resolve4 (IPv4 only).
 let _transporter: nodemailer.Transporter | null = null;
 
 function getTransporter(): nodemailer.Transporter {
   if (_transporter) return _transporter;
-  _transporter = nodemailer.createTransport({
-    service: 'gmail',
+  // Force IPv4 — Railway does not route outbound IPv6 traffic.
+  // nodemailer's SMTPTransport.Options doesn't type `lookup` but the underlying
+  // net.createConnection accepts it. We cast to any to pass it through.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transportOptions: any = {
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
       user: env.GMAIL_USER,
       pass: env.GMAIL_APP_PASSWORD,
     },
-  });
+    lookup: (hostname: string, _options: unknown, callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
+      dns.resolve4(hostname, (err, addresses) => {
+        if (err) return callback(err, '', 4);
+        callback(null, addresses[0], 4);
+      });
+    },
+  };
+  _transporter = nodemailer.createTransport(transportOptions);
   return _transporter;
 }
 
