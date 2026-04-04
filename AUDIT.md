@@ -64,13 +64,13 @@ Legend: ✅ Fixed | 🔄 In Progress | ⬜ Open
 
 | # | Repo | Issue | Status |
 |---|---|---|---|
-| 32 | backend | No subscription auto-renewal job. Users must manually re-purchase when plan expires. | ⬜ |
+| 32 | backend | No subscription auto-renewal job. Users must manually re-purchase when plan expires. | ✅ Fixed — backend commit 7cba8b7 (daily cron at 03:00, Paystack charge_authorization, renewal email on success/failure) |
 | 33 | backend | `morgan` may log tokens appearing in query params. Add a sanitizer to strip sensitive values. | ✅ Fixed — backend commit 2d32884 |
 | 34 | backend | No Jest coverage threshold. Any coverage (including 0%) passes the test run. | ✅ Fixed — backend commit 2d32884 |
-| 35 | backend | Posts permanently deleted — no `isDeleted` soft-delete flag or audit trail for admin review. | ⬜ |
-| 36 | backend | N+1 queries in visibility and follow/block checks. Each request re-fetches follow and block status separately. | ⬜ |
-| 37 | users | App works in offline PWA mode but shows no offline indicator to the user. | ✅ Fixed — users commit (OfflineBanner component in AppShell) |
-| 38 | users | Some components use raw Next.js `<Image>` without Cloudinary transform URL params. | ⬜ |
+| 35 | backend | Posts permanently deleted — no `isDeleted` soft-delete flag or audit trail for admin review. | ✅ Fixed — backend commit 8cbd8fc (isDeleted + deletedAt on Post, soft-delete in deletePost(), all public queries filter isDeleted: false) |
+| 36 | backend | N+1 queries in visibility and follow/block checks. Each request re-fetches follow and block status separately. | ✅ Fixed — backend commit d2b9644 (Promise.all batches follow/block/viewer lookups in feed, getPost, getUserPosts) |
+| 37 | users | App works in offline PWA mode but shows no offline indicator to the user. | ✅ Fixed — users commit bda0c67 (OfflineBanner component mounted in AppShell, uses online/offline window events) |
+| 38 | users | Some components use raw Next.js `<Image>` without Cloudinary transform URL params. | ✅ Fixed — users commit 66bfd42 (10 components updated to use getOptimisedUrl / getAvatarUrl) |
 | 39 | users | `CreatePostModal` is not dynamically imported — loads unconditionally with the feed on every render. | ✅ Fixed — users commit 56cc946 |
 | 40 | users | Icon-only buttons missing `aria-label` attributes throughout (BottomNav, toolbar buttons). | ✅ FALSE POSITIVE — BottomNav links use `aria-label` on every icon-only anchor; toolbar icon buttons include visible text labels. |
 | 41 | users | Share post counts are tracked by the backend but there is no share UI on the frontend. | ✅ FALSE POSITIVE — Share button with `navigator.share` / clipboard fallback present in `PostCard`; count displayed inline. |
