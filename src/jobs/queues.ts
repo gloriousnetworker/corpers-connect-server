@@ -2,6 +2,7 @@ import { Queue } from 'bullmq';
 import { bullmqConnection } from '../config/bullmq';
 import type { EmailJobData, SubscriptionJobData, LevelJobData, CleanupJobData } from './types';
 import { QUEUE_NAMES } from './types';
+import { processEmailJob } from './processors/email.processor';
 
 // ── Queue singletons ──────────────────────────────────────────────────────────
 
@@ -45,7 +46,14 @@ export const cleanupQueue = new Queue<CleanupJobData>(QUEUE_NAMES.CLEANUP, {
 // ── Typed add-job helpers ─────────────────────────────────────────────────────
 
 export async function addEmailJob(data: EmailJobData) {
-  return emailQueue.add(data.type, data);
+  try {
+    return await emailQueue.add(data.type, data);
+  } catch (err) {
+    // BullMQ unavailable (Redis TLS misconfiguration, network issue, etc.)
+    // Fall back to sending directly so OTPs/notifications are never silently lost.
+    console.warn('[EMAIL] BullMQ queue unavailable, sending directly:', (err as Error).message);
+    await processEmailJob(data);
+  }
 }
 
 /** Manually trigger subscription expiry (useful for admin/testing). */
