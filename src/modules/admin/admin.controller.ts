@@ -41,9 +41,11 @@ export const adminController = {
       if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
 
       const result = await adminService.login(parsed.data);
-      // Set token as httpOnly cookie for middleware validation + XSS safety.
-      // Also return accessToken in the JSON body so the client can store it in
-      // memory for Authorization: Bearer headers without touching localStorage.
+      // When 2FA is required, return the challenge token without setting a
+      // session cookie — the cookie is set only after TOTP verification.
+      if (result.requires2FA) {
+        return res.json({ status: 'success', data: result });
+      }
       res.cookie(ADMIN_SESSION_COOKIE, result.accessToken, adminCookieOptions());
       res.json({ status: 'success', data: result });
     } catch (err) {
@@ -333,6 +335,55 @@ export const adminController = {
     try {
       await adminService.deactivateAdmin(p(req.params.adminId), req.user!.id, ip(req));
       res.json({ status: 'success', data: null, message: 'Admin deactivated' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── 2FA: complete challenge after password login ──────────────────────────────
+
+  async complete2FAChallenge(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { challengeToken, code } = req.body as { challengeToken?: string; code?: string };
+      if (!challengeToken || !code) {
+        return res.status(400).json({ status: 'error', message: 'challengeToken and code are required' });
+      }
+      const result = await adminService.complete2FAChallenge(challengeToken, code);
+      res.cookie(ADMIN_SESSION_COOKIE, result.accessToken, adminCookieOptions());
+      res.json({ status: 'success', data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── 2FA: setup (initiate + confirm) — requires existing admin JWT ─────────────
+
+  async initiate2FASetup(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await adminService.initiate2FASetup(req.user!.id);
+      res.json({ status: 'success', data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async confirm2FASetup(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { code } = req.body as { code?: string };
+      if (!code) return res.status(400).json({ status: 'error', message: 'code is required' });
+      const result = await adminService.confirm2FASetup(req.user!.id, code);
+      res.json({ status: 'success', data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async disable2FA(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { code } = req.body as { code?: string };
+      if (!code) return res.status(400).json({ status: 'error', message: 'code is required' });
+      const result = await adminService.disable2FA(req.user!.id, code);
+      res.json({ status: 'success', data: result });
     } catch (err) {
       next(err);
     }

@@ -89,8 +89,9 @@ describe('adminService.login', () => {
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     const result = await adminService.login({ email: 'admin@example.com', password: 'password' });
+    expect(result.requires2FA).toBe(false);
     expect(result.accessToken).toBe('mock-admin-token');
-    expect(result.admin.role).toBe('SUPERADMIN');
+    expect(result.admin?.role).toBe('SUPERADMIN');
   });
 
   it('throws 401 for wrong password', async () => {

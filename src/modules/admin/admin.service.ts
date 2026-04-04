@@ -1,4 +1,7 @@
 import bcrypt from 'bcrypt';
+import { authenticator } from 'otplib';
+import QRCode from 'qrcode';
+import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../../config/prisma';
 import { jwtService } from '../../shared/services/jwt.service';
 import { AppError } from '../../shared/utils/errors';
@@ -48,6 +51,68 @@ export const adminService = {
     const match = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!match) throw new AppError('Invalid credentials', 401);
 
+    // If 2FA is enabled, issue a short-lived challenge token instead of a full JWT
+    if (admin.twoFactorEnabled) {
+      const challengeToken = uuidv4();
+      const { redisHelpers } = await import('../../config/redis');
+      await redisHelpers.setex(`admin_2fa_challenge:${challengeToken}`, 300, admin.id);
+      return { requires2FA: true, challengeToken };
+    }
+
+    const accessToken = jwtService.signAccessToken({
+      sub: admin.id,
+      email: admin.email,
+      role: admin.role as 'ADMIN' | 'SUPERADMIN',
+    });
+
+    return {
+      requires2FA: false,
+      accessToken,
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        role: admin.role,
+      },
+    };
+  },
+
+  // ── Admin 2FA: challenge step (called after password login) ───────────────────
+
+  async complete2FAChallenge(challengeToken: string, code: string) {
+    const { redisHelpers, redis } = await import('../../config/redis');
+    const attemptsKey = `admin_2fa_attempts:${challengeToken}`;
+    const MAX_ATTEMPTS = 5;
+
+    const adminId = await redisHelpers.get(`admin_2fa_challenge:${challengeToken}`);
+    if (!adminId) throw new AppError('2FA challenge expired. Please login again.', 400);
+
+    const attempts = parseInt((await redisHelpers.get(attemptsKey)) ?? '0', 10);
+    if (attempts >= MAX_ATTEMPTS) {
+      await redisHelpers.del(`admin_2fa_challenge:${challengeToken}`);
+      await redisHelpers.del(attemptsKey);
+      throw new AppError('Too many incorrect attempts. Please login again.', 429);
+    }
+
+    const admin = await prisma.adminUser.findUnique({ where: { id: adminId } });
+    if (!admin || !admin.twoFactorSecret) throw new AppError('Invalid challenge', 401);
+
+    const valid = authenticator.verify({ token: code, secret: admin.twoFactorSecret });
+    if (!valid) {
+      await redis.set(attemptsKey, attempts + 1, 'EX', 300);
+      const remaining = MAX_ATTEMPTS - (attempts + 1);
+      throw new AppError(
+        remaining > 0
+          ? `Invalid 2FA code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+          : 'Invalid 2FA code.',
+        401,
+      );
+    }
+
+    await redisHelpers.del(`admin_2fa_challenge:${challengeToken}`);
+    await redisHelpers.del(attemptsKey);
+
     const accessToken = jwtService.signAccessToken({
       sub: admin.id,
       email: admin.email,
@@ -64,6 +129,57 @@ export const adminService = {
         role: admin.role,
       },
     };
+  },
+
+  // ── Admin 2FA: setup & management ─────────────────────────────────────────────
+
+  async initiate2FASetup(adminId: string) {
+    const admin = await prisma.adminUser.findUnique({ where: { id: adminId } });
+    if (!admin) throw new AppError('Admin not found', 404);
+    if (admin.twoFactorEnabled) throw new AppError('2FA is already enabled', 409);
+
+    const secret = authenticator.generateSecret();
+    const otpAuthUrl = authenticator.keyuri(admin.email, 'Corpers Connect Admin', secret);
+    const qrCode = await QRCode.toDataURL(otpAuthUrl);
+
+    const { redisHelpers } = await import('../../config/redis');
+    await redisHelpers.setex(`admin_2fa_setup:${adminId}`, 300, secret);
+
+    return { secret, qrCode };
+  },
+
+  async confirm2FASetup(adminId: string, code: string) {
+    const { redisHelpers } = await import('../../config/redis');
+    const secret = await redisHelpers.get(`admin_2fa_setup:${adminId}`);
+    if (!secret) throw new AppError('2FA setup expired. Please try again.', 400);
+
+    const valid = authenticator.verify({ token: code, secret });
+    if (!valid) throw new AppError('Invalid code. Please try again.', 400);
+
+    await prisma.adminUser.update({
+      where: { id: adminId },
+      data: { twoFactorEnabled: true, twoFactorSecret: secret },
+    });
+
+    await redisHelpers.del(`admin_2fa_setup:${adminId}`);
+    return { message: '2FA enabled successfully' };
+  },
+
+  async disable2FA(adminId: string, code: string) {
+    const admin = await prisma.adminUser.findUnique({ where: { id: adminId } });
+    if (!admin) throw new AppError('Admin not found', 404);
+    if (!admin.twoFactorEnabled) throw new AppError('2FA is not enabled', 400);
+    if (!admin.twoFactorSecret) throw new AppError('2FA setup is incomplete', 400);
+
+    const valid = authenticator.verify({ token: code, secret: admin.twoFactorSecret });
+    if (!valid) throw new AppError('Invalid 2FA code', 401);
+
+    await prisma.adminUser.update({
+      where: { id: adminId },
+      data: { twoFactorEnabled: false, twoFactorSecret: null },
+    });
+
+    return { message: '2FA disabled successfully' };
   },
 
   async getAdminById(id: string) {

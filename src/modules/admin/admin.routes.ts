@@ -8,9 +8,16 @@ const router = Router();
 router.post('/auth/login', adminController.login);
 router.post('/auth/logout', adminController.logout);
 router.get('/auth/me', adminController.me);
+// 2FA challenge is public (called before admin JWT is issued)
+router.post('/auth/2fa/challenge', adminController.complete2FAChallenge);
 
 // ── All remaining routes require admin JWT ────────────────────────────────────
 router.use(authenticate, requireAdmin);
+
+// ── 2FA setup & management (requires existing admin JWT) ─────────────────────
+router.post('/auth/2fa/initiate', adminController.initiate2FASetup);
+router.post('/auth/2fa/confirm', adminController.confirm2FASetup);
+router.delete('/auth/2fa', adminController.disable2FA);
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 router.get('/dashboard', adminController.getDashboard);
