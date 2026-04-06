@@ -57,15 +57,28 @@ export const discoverService = {
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    const followingSet = await prisma.follow
-      .findMany({
-        where: { followerId: userId, followingId: { in: items.map((u) => u.id) } },
-        select: { followingId: true },
-      })
-      .then((rs) => new Set(rs.map((r) => r.followingId)));
+    const userIds = items.map((u) => u.id);
+    const [followingSet, followsYouSet] = await Promise.all([
+      prisma.follow
+        .findMany({
+          where: { followerId: userId, followingId: { in: userIds } },
+          select: { followingId: true },
+        })
+        .then((rs) => new Set(rs.map((r) => r.followingId))),
+      prisma.follow
+        .findMany({
+          where: { followerId: { in: userIds }, followingId: userId },
+          select: { followerId: true },
+        })
+        .then((rs) => new Set(rs.map((r) => r.followerId))),
+    ]);
 
     return {
-      items: items.map((u) => ({ ...u, isFollowing: followingSet.has(u.id) })),
+      items: items.map((u) => ({
+        ...u,
+        isFollowing: followingSet.has(u.id),
+        followsYou: followsYouSet.has(u.id),
+      })),
       nextCursor,
       hasMore,
       state: me.servingState,
@@ -123,8 +136,19 @@ export const discoverService = {
     }
 
     // getSuggestions already excludes people the user is following,
-    // so isFollowing is always false for every suggestion.
-    return suggestions.map((u) => ({ ...u, isFollowing: false }));
+    // so isFollowing is always false. But they may follow the current user.
+    const followsYouSet = await prisma.follow
+      .findMany({
+        where: { followerId: { in: suggestions.map((u) => u.id) }, followingId: userId },
+        select: { followerId: true },
+      })
+      .then((rs) => new Set(rs.map((r) => r.followerId)));
+
+    return suggestions.map((u) => ({
+      ...u,
+      isFollowing: false,
+      followsYou: followsYouSet.has(u.id),
+    }));
   },
 
   // ── Search (name or state code) ────────────────────────────────────────────

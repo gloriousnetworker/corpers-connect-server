@@ -26,7 +26,7 @@ function refreshCookieOptions(): CookieOptions {
     sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
     // Restrict to the refresh endpoint so the cookie is never sent on other requests.
     path: '/api/v1/auth/refresh',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+    maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days in ms
   };
 }
 
