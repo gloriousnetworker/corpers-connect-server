@@ -66,6 +66,42 @@ async function main() {
   });
   console.info(`✅ Dev corper 2: ${corper2.stateCode} — ${corper2.firstName} ${corper2.lastName}`);
 
+  // ── Corpers Connect Official account ─────────────────────────────────────
+  const officialPassword = await bcrypt.hash('Admin@1234', SALT_ROUNDS);
+  const officialAccount = await prisma.user.upsert({
+    where: { email: 'admin@corpersconnect.com.ng' },
+    update: {
+      isVerified: true,
+      subscriptionTier: 'PREMIUM',
+      level: 'CORPER',
+      corperTag: true,
+      corperTagLabel: 'Official',
+      bio: 'The official Corpers Connect account. Follow us for updates, announcements, and community highlights.',
+      isOnboarded: true,
+      isFirstLogin: false,
+    },
+    create: {
+      stateCode: 'CC/OFFICIAL/001',
+      firstName: 'Corpers Connect',
+      lastName: 'Official',
+      email: 'admin@corpersconnect.com.ng',
+      passwordHash: officialPassword,
+      servingState: 'Kogi State',
+      lga: 'Lokoja',
+      ppa: 'Corpers Connect HQ',
+      batch: '2025C',
+      isVerified: true,
+      subscriptionTier: 'PREMIUM',
+      level: 'CORPER',
+      corperTag: true,
+      corperTagLabel: 'Official',
+      bio: 'The official Corpers Connect account. Follow us for updates, announcements, and community highlights.',
+      isOnboarded: true,
+      isFirstLogin: false,
+    },
+  });
+  console.info(`✅ Official account: ${officialAccount.email} — ${officialAccount.firstName} ${officialAccount.lastName}`);
+
   // ── Mutual follow between the two dev corpers ────────────────────────────
   await prisma.follow.upsert({
     where: { followerId_followingId: { followerId: corper1.id, followingId: corper2.id } },
@@ -79,9 +115,23 @@ async function main() {
   });
   console.info(`✅ Mutual follow: ${corper1.firstName} ↔ ${corper2.firstName}`);
 
+  // ── Dev corpers auto-follow the official account ─────────────────────────
+  await prisma.follow.upsert({
+    where: { followerId_followingId: { followerId: corper1.id, followingId: officialAccount.id } },
+    create: { followerId: corper1.id, followingId: officialAccount.id },
+    update: {},
+  });
+  await prisma.follow.upsert({
+    where: { followerId_followingId: { followerId: corper2.id, followingId: officialAccount.id } },
+    create: { followerId: corper2.id, followingId: officialAccount.id },
+    update: {},
+  });
+  console.info(`✅ Dev corpers follow Official account`);
+
   console.info('\n🎉 Database seeded successfully!');
   console.info('─────────────────────────────────────────');
-  console.info('Admin login:  admin@corpers-connect.ng / Admin@1234');
+  console.info('Admin panel:  admin@corpers-connect.ng / Admin@1234');
+  console.info('Official:     admin@corpersconnect.com.ng / Admin@1234  (users app)');
   console.info('Corper 1:     KG/25C/1358 / Corper@1234  (udofotsx@yahoo.com)');
   console.info('Corper 2:     KG/25C/1359 / Corper@1234  (chukwuemeriepascal@outlook.com)');
   console.info('─────────────────────────────────────────\n');

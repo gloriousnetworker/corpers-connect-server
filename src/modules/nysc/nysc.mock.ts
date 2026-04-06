@@ -153,6 +153,18 @@ export const MOCK_CORPERS: CorperRecord[] = [
     batch: '2025C',
     lga: 'Lokoja',
   },
+  // ── Official account (not a real corper — brand account) ──
+  {
+    stateCode: 'CC/OFFICIAL/001',
+    firstName: 'Corpers Connect',
+    lastName: 'Official',
+    email: 'admin@corpersconnect.com.ng',
+    phone: '09000000001',
+    servingState: 'Kogi State',
+    ppa: 'Corpers Connect HQ',
+    batch: '2025C',
+    lga: 'Lokoja',
+  },
 ];
 
 // TODO: When NYSC API access is granted, replace NYSCMockService with NYSCApiService
