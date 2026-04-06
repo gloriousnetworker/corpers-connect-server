@@ -65,6 +65,17 @@ export const MOCK_CORPERS: CorperRecord[] = [
     batch: '2025C',
     lga: 'Lokoja',
   },
+  {
+    stateCode: 'KG/25C/1362',
+    firstName: 'Rebecca',
+    lastName: 'Okon',
+    email: 'rapebak413@marvetos.com',
+    phone: '09033333333',
+    servingState: 'Kogi State',
+    ppa: 'Federal Medical Centre Lokoja',
+    batch: '2025C',
+    lga: 'Lokoja',
+  },
 ];
 
 // TODO: When NYSC API access is granted, replace NYSCMockService with NYSCApiService
