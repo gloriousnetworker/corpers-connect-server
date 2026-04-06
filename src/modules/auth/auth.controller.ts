@@ -23,7 +23,9 @@ function refreshCookieOptions(): CookieOptions {
   return {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    // 'none' required because frontend (corpersconnect.com.ng) and backend
+    // (railway.app) are on different domains — lax/strict would block the cookie.
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     // Restrict to the refresh endpoint so the cookie is never sent on other requests.
     path: '/api/v1/auth/refresh',
     maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days in ms
