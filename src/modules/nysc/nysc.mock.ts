@@ -58,7 +58,7 @@ export const MOCK_CORPERS: CorperRecord[] = [
     stateCode: 'KG/25C/1361',
     firstName: 'Test',
     lastName: 'Corper',
-    email: 'iniubongudofot2000@gmail.com',
+    email: 'tawis20899@cosdas.com',
     phone: '09022222222',
     servingState: 'Kogi State',
     ppa: 'Federal Ministry of Health',
