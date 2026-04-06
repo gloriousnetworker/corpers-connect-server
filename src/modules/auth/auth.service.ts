@@ -74,7 +74,7 @@ export const authService = {
   },
 
   // ── Registration: Verify OTP & Create Account ────────────────────────────────
-  async verifyRegistration(stateCode: string, otp: string) {
+  async verifyRegistration(stateCode: string, otp: string, deviceInfo?: string, ipAddress?: string) {
     const normalised = stateCode.toUpperCase().trim();
     const { redisHelpers } = await import('../../config/redis');
 
@@ -111,7 +111,7 @@ export const authService = {
     await redisHelpers.del(pendingKey);
 
     // Issue tokens
-    const tokens = await createSession(user.id, user.email, 'USER');
+    const tokens = await createSession(user.id, user.email, 'USER', deviceInfo, ipAddress);
 
     return {
       user: sanitiseUser(user),
@@ -121,7 +121,7 @@ export const authService = {
   },
 
   // ── Login ────────────────────────────────────────────────────────────────────
-  async login(identifier: string, password: string) {
+  async login(identifier: string, password: string, deviceInfo?: string, ipAddress?: string) {
     // Find by email or state code
     const user = await prisma.user.findFirst({
       where: {
@@ -160,7 +160,7 @@ export const authService = {
       };
     }
 
-    const tokens = await createSession(user.id, user.email, 'USER', identifier);
+    const tokens = await createSession(user.id, user.email, 'USER', deviceInfo, ipAddress);
 
     return {
       requires2FA: false,
@@ -170,7 +170,7 @@ export const authService = {
   },
 
   // ── 2FA Challenge (login step 2) ─────────────────────────────────────────────
-  async complete2FAChallenge(challengeToken: string, code: string) {
+  async complete2FAChallenge(challengeToken: string, code: string, deviceInfo?: string, ipAddress?: string) {
     const { redisHelpers, redis } = await import('../../config/redis');
 
     const attemptsKey = `2fa_attempts:${challengeToken}`;
@@ -209,12 +209,12 @@ export const authService = {
     await redisHelpers.del(`2fa_challenge:${challengeToken}`);
     await redisHelpers.del(attemptsKey);
 
-    const tokens = await createSession(user.id, user.email, 'USER');
+    const tokens = await createSession(user.id, user.email, 'USER', deviceInfo, ipAddress);
     return { user: sanitiseUser(user), ...tokens };
   },
 
   // ── Refresh Token ────────────────────────────────────────────────────────────
-  async refreshToken(refreshToken: string) {
+  async refreshToken(refreshToken: string, deviceInfo?: string, ipAddress?: string) {
     const payload = jwtService.verifyRefreshToken(refreshToken);
 
     // Check session still valid
@@ -232,9 +232,15 @@ export const authService = {
       throw new UnauthorizedError('Session expired. Please login again.');
     }
 
-    // Rotate: delete old session, create new one
+    // Rotate: delete old session, create new one (carry forward device info)
     await prisma.session.delete({ where: { id: session.id } });
-    const tokens = await createSession(session.userId, session.user.email, 'USER');
+    const tokens = await createSession(
+      session.userId,
+      session.user.email,
+      'USER',
+      deviceInfo || session.deviceInfo || undefined,
+      ipAddress || session.ipAddress || undefined,
+    );
 
     return tokens;
   },
@@ -378,12 +384,19 @@ async function createSession(
   userId: string,
   email: string,
   role: 'USER' | 'ADMIN' | 'SUPERADMIN',
-  _deviceInfo?: string,
+  deviceInfo?: string,
+  ipAddress?: string,
 ) {
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days
 
   const session = await prisma.session.create({
-    data: { userId, refreshToken: '', expiresAt },
+    data: {
+      userId,
+      refreshToken: '',
+      expiresAt,
+      deviceInfo: deviceInfo || null,
+      ipAddress: ipAddress || null,
+    },
   });
 
   const accessToken = jwtService.signAccessToken({ sub: userId, email, role });

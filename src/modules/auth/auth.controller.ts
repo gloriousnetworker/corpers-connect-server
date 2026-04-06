@@ -73,7 +73,9 @@ export const authController = {
   async registerVerify(req: Request, res: Response, next: NextFunction) {
     try {
       const { stateCode, otp } = registerVerifySchema.parse(req.body);
-      const data = await authService.verifyRegistration(stateCode, otp);
+      const ua = req.headers['user-agent'] || undefined;
+      const ip = req.ip || req.socket.remoteAddress || undefined;
+      const data = await authService.verifyRegistration(stateCode, otp, ua, ip);
       const safe = setRefreshCookie(res, data as Record<string, unknown>);
       sendCreated(res, safe, data.message);
     } catch (err) {
@@ -84,7 +86,9 @@ export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const { identifier, password } = loginSchema.parse(req.body);
-      const data = await authService.login(identifier, password);
+      const ua = req.headers['user-agent'] || undefined;
+      const ip = req.ip || req.socket.remoteAddress || undefined;
+      const data = await authService.login(identifier, password, ua, ip);
       const safe = setRefreshCookie(res, data as Record<string, unknown>);
       sendSuccess(res, safe, 'Login successful');
     } catch (err) {
@@ -95,7 +99,9 @@ export const authController = {
   async twoFAChallenge(req: Request, res: Response, next: NextFunction) {
     try {
       const { userId, code } = twoFAChallengeSchema.parse(req.body);
-      const data = await authService.complete2FAChallenge(userId, code);
+      const ua = req.headers['user-agent'] || undefined;
+      const ip = req.ip || req.socket.remoteAddress || undefined;
+      const data = await authService.complete2FAChallenge(userId, code, ua, ip);
       const safe = setRefreshCookie(res, data as Record<string, unknown>);
       sendSuccess(res, safe, 'Login successful');
     } catch (err) {
@@ -110,7 +116,9 @@ export const authController = {
         res.status(401).json({ success: false, message: 'No refresh token' });
         return;
       }
-      const data = await authService.refreshToken(refreshToken);
+      const ua = req.headers['user-agent'] || undefined;
+      const ip = req.ip || req.socket.remoteAddress || undefined;
+      const data = await authService.refreshToken(refreshToken, ua, ip);
       const safe = setRefreshCookie(res, data as Record<string, unknown>);
       sendSuccess(res, safe, 'Token refreshed');
     } catch (err) {
