@@ -1,4 +1,5 @@
 import { redisHelpers } from '../../config/redis';
+import { prisma } from '../../config/prisma';
 import { NotFoundError, BadRequestError } from '../../shared/utils/errors';
 import { MOCK_CORPERS } from './nysc.mock';
 import { CorperRecord, INYSCService } from './nysc.types';
@@ -40,22 +41,42 @@ export class NYSCMockService implements INYSCService {
       return JSON.parse(cached) as CorperRecord;
     }
 
-    // Look up in mock data (case-insensitive state code)
-    const record = MOCK_CORPERS.find(
+    // 1. Look up in hardcoded mock data
+    const mockRecord = MOCK_CORPERS.find(
       (c) => c.stateCode.toUpperCase() === normalised,
     );
 
-    if (!record) {
-      throw new NotFoundError(
-        `State code ${normalised} was not found in the NYSC database. ` +
-          `Please verify your state code and try again.`,
-      );
+    if (mockRecord) {
+      await redisHelpers.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(mockRecord));
+      return mockRecord;
     }
 
-    // Cache for 24 hours
-    await redisHelpers.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(record));
+    // 2. Look up in ApprovedCorper table (admin-approved join requests)
+    const approved = await prisma.approvedCorper.findUnique({
+      where: { stateCode: normalised },
+    });
 
-    return record;
+    if (approved) {
+      const record: CorperRecord = {
+        stateCode: approved.stateCode,
+        firstName: approved.firstName,
+        lastName: approved.lastName,
+        email: approved.email,
+        phone: approved.phone ?? undefined,
+        servingState: approved.servingState,
+        lga: approved.lga ?? undefined,
+        ppa: approved.ppa ?? undefined,
+        batch: approved.batch,
+      };
+      await redisHelpers.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(record));
+      return record;
+    }
+
+    // Not found anywhere
+    throw new NotFoundError(
+      `State code ${normalised} was not found in the NYSC database. ` +
+        `If you're a corps member, you can request to join via the app.`,
+    );
   }
 }
 

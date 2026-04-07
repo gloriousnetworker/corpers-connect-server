@@ -3,11 +3,11 @@ export interface CorperRecord {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
+  phone?: string;
   servingState: string;
-  ppa: string;
+  ppa?: string;
   batch: string;
-  lga: string;
+  lga?: string;
 }
 
 export interface INYSCService {

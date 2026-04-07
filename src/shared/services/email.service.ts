@@ -145,4 +145,38 @@ export const emailService = {
     `);
     await send(to, 'Welcome to Corpers Connect!', html, 'welcome');
   },
+
+  async sendJoinRequestApproved(to: string, name: string, registerUrl: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Great news! Your request to join Corpers Connect has been <strong style="color: #008751;">approved</strong>.</p>
+      <p style="color: #555;">You can now register and start connecting with fellow corps members.</p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${escapeHtml(registerUrl)}" style="display: inline-block; background: #008751; color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Register Now
+        </a>
+      </div>
+      <p style="color: #555; font-size: 14px;">
+        Use your NYSC state code to create your account. Welcome to the community!
+      </p>
+    `);
+    await send(to, 'Your Corpers Connect join request has been approved!', html, 'join-approved');
+  },
+
+  async sendJoinRequestRejected(to: string, name: string, reason: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const safeReason = escapeHtml(reason);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">We've reviewed your request to join Corpers Connect and unfortunately it could not be approved at this time.</p>
+      <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <p style="color: #991B1B; font-size: 14px; margin: 0;"><strong>Reason:</strong> ${safeReason}</p>
+      </div>
+      <p style="color: #555; font-size: 14px;">
+        You can resubmit your request with the correct information. If you believe this was a mistake, please contact support.
+      </p>
+    `);
+    await send(to, 'Update on your Corpers Connect join request', html, 'join-rejected');
+  },
 };

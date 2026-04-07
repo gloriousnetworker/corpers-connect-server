@@ -303,7 +303,8 @@ model AdminUser {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  auditLogs AuditLog[]
+  auditLogs    AuditLog[]
+  joinRequests JoinRequest[]
 }
 
 // ─── POSTS & FEED ─────────────────────────────────────────────────────────────
@@ -771,4 +772,55 @@ model SystemSetting {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+// ─── JOIN REQUESTS ────────────────────────────────────────────────────────────
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model JoinRequest {
+  id            String            @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String
+  phone         String?
+  stateCode     String
+  servingState  String
+  lga           String?
+  ppa           String?
+  batch         String
+  documentUrl   String            // Scanned NYSC posting letter (Cloudinary)
+  status        JoinRequestStatus @default(PENDING)
+  reviewNote    String?
+  reviewedAt    DateTime?
+  reviewedById  String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  reviewedBy AdminUser? @relation(fields: [reviewedById], references: [id])
+
+  @@unique([email])
+  @@unique([stateCode])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ApprovedCorper {
+  id           String   @id @default(cuid())
+  stateCode    String   @unique
+  firstName    String
+  lastName     String
+  email        String   @unique
+  phone        String?
+  servingState String
+  lga          String?
+  ppa          String?
+  batch        String
+  createdAt    DateTime @default(now())
+
+  @@index([stateCode])
 }
