@@ -164,6 +164,50 @@ export const emailService = {
     await send(to, 'Your Corpers Connect join request has been approved!', html, 'join-approved');
   },
 
+  async sendJoinRequestReceived(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">
+        We've received your request to join Corpers Connect. Thank you for submitting your details!
+      </p>
+      <div style="background: #f0faf4; border-left: 4px solid #008751; border-radius: 6px;
+                  padding: 16px 20px; margin: 20px 0;">
+        <p style="color: #333; font-size: 14px; margin: 0 0 6px; font-weight: bold;">What happens next?</p>
+        <p style="color: #555; font-size: 14px; margin: 0;">
+          Our team will review your documents and verify your NYSC details. This usually takes
+          <strong>24–48 hours</strong>. You'll receive another email once a decision has been made.
+        </p>
+      </div>
+      <p style="color: #888; font-size: 13px;">
+        If you have any questions, reply to this email or contact us through the app.
+      </p>
+    `);
+    await send(to, 'We received your Corpers Connect join request', html, 'join-request-received');
+  },
+
+  async sendRegistrationComplete(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Your Corpers Connect account is ready! 🎉</p>
+      <p style="color: #555;">
+        You're now part of a growing community of NYSC corps members. Connect, share experiences,
+        explore opportunities, and make the most of your service year.
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Open Corpers Connect
+        </a>
+      </div>
+      <p style="color: #888; font-size: 13px;">
+        Keep this email safe — it confirms your account was created successfully.
+      </p>
+    `);
+    await send(to, 'Welcome to Corpers Connect! Your account is ready', html, 'registration-complete');
+  },
+
   async sendJoinRequestRejected(to: string, name: string, reason: string): Promise<void> {
     const safeName = escapeHtml(name);
     const safeReason = escapeHtml(reason);

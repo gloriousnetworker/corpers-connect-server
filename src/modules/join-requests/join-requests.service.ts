@@ -44,7 +44,7 @@ export const joinRequestsService = {
         throw new ConflictError('Your request was already approved. You can register now.');
       }
       // REJECTED — allow resubmission by updating the existing record
-      return prisma.joinRequest.update({
+      const resubmitted = await prisma.joinRequest.update({
         where: { id: existingRequest.id },
         data: {
           firstName: dto.firstName,
@@ -63,9 +63,13 @@ export const joinRequestsService = {
           reviewedById: null,
         },
       });
+      emailService
+        .sendJoinRequestReceived(resubmitted.email, resubmitted.firstName)
+        .catch((err) => console.error('[EMAIL] Join request resubmission email failed:', err));
+      return resubmitted;
     }
 
-    return prisma.joinRequest.create({
+    const created = await prisma.joinRequest.create({
       data: {
         firstName: dto.firstName,
         lastName: dto.lastName,
@@ -79,6 +83,13 @@ export const joinRequestsService = {
         documentUrl,
       },
     });
+
+    // Confirmation email — fire-and-forget so a failed send won't block the response
+    emailService
+      .sendJoinRequestReceived(created.email, created.firstName)
+      .catch((err) => console.error('[EMAIL] Join request confirmation email failed:', err));
+
+    return created;
   },
 
   // ── Check status by email (public) ────────────────────────────────────────

@@ -110,6 +110,11 @@ export const authService = {
     // Clean up Redis
     await redisHelpers.del(pendingKey);
 
+    // Send welcome email (fire-and-forget — a failed email must not break registration)
+    emailService
+      .sendRegistrationComplete(user.email, user.firstName)
+      .catch((err) => console.error('[AUTH] Welcome email failed:', err));
+
     // Issue tokens
     const tokens = await createSession(user.id, user.email, 'USER', deviceInfo, ipAddress);
 
