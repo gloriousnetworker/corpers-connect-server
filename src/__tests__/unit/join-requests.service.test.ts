@@ -18,6 +18,7 @@ jest.mock('../../config/prisma', () => ({
 
 jest.mock('../../shared/services/email.service', () => ({
   emailService: {
+    sendJoinRequestReceived: jest.fn().mockResolvedValue(undefined),
     sendJoinRequestApproved: jest.fn().mockResolvedValue(undefined),
     sendJoinRequestRejected: jest.fn().mockResolvedValue(undefined),
   },

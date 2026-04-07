@@ -17,6 +17,12 @@ jest.mock('../../shared/services/email.service', () => ({
   emailService: {
     sendOTP: jest.fn(),
     sendWelcome: jest.fn(),
+    sendRegistrationComplete: jest.fn(),
+    sendJoinRequestReceived: jest.fn(),
+    sendJoinRequestApproved: jest.fn(),
+    sendJoinRequestRejected: jest.fn(),
+    sendRenewalSuccess: jest.fn(),
+    sendRenewalFailed: jest.fn(),
   },
 }));
 

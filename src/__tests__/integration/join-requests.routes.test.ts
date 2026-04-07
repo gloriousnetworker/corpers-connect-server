@@ -15,6 +15,8 @@ jest.mock('../../shared/services/email.service', () => ({
   emailService: {
     sendOTP: jest.fn().mockResolvedValue(undefined),
     sendWelcome: jest.fn().mockResolvedValue(undefined),
+    sendRegistrationComplete: jest.fn().mockResolvedValue(undefined),
+    sendJoinRequestReceived: jest.fn().mockResolvedValue(undefined),
     sendJoinRequestApproved: jest.fn().mockResolvedValue(undefined),
     sendJoinRequestRejected: jest.fn().mockResolvedValue(undefined),
     sendRenewalSuccess: jest.fn().mockResolvedValue(undefined),

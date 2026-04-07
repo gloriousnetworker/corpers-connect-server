@@ -8,6 +8,7 @@ jest.mock('../../shared/services/email.service', () => ({
   emailService: {
     sendOTP: jest.fn().mockResolvedValue(undefined),
     sendWelcome: jest.fn().mockResolvedValue(undefined),
+    sendRegistrationComplete: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
