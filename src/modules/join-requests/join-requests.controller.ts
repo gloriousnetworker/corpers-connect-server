@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { joinRequestsService } from './join-requests.service';
 import { submitJoinRequestSchema, reviewJoinRequestSchema } from './join-requests.validation';
-import { uploadToCloudinary } from '../../shared/middleware/upload.middleware';
+import { cloudinary } from '../../config/cloudinary';
 import { ValidationError } from '../../shared/utils/errors';
 
 export const joinRequestsController = {
@@ -16,10 +16,17 @@ export const joinRequestsController = {
 
       const dto = submitJoinRequestSchema.parse(req.body);
 
-      // Upload document to Cloudinary (no resize — keep original quality for admin review)
-      const documentUrl = await uploadToCloudinary(file.buffer, 'corpers_connect/join_docs', {
-        quality: 'auto',
-        format: 'auto',
+      // Upload document to Cloudinary — resource_type 'auto' handles both
+      // images and PDFs. No image transformations so originals stay intact.
+      const documentUrl = await new Promise<string>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'corpers_connect/join_docs', resource_type: 'auto', access_mode: 'public' },
+          (error, result) => {
+            if (error || !result) return reject(error ?? new Error('Upload failed'));
+            resolve(result.secure_url);
+          },
+        );
+        stream.end(file.buffer);
       });
 
       const data = await joinRequestsService.submit(dto, documentUrl);
