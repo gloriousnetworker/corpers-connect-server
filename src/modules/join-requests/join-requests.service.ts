@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { emailService } from '../../shared/services/email.service';
 import { env } from '../../config/env';
+import { nyscService } from '../nysc/nysc.service';
 import {
   ConflictError,
   NotFoundError,
@@ -17,16 +18,24 @@ export const joinRequestsService = {
     const normalised = dto.stateCode.toUpperCase().trim();
     const emailLower = dto.email.toLowerCase().trim();
 
+    // Check if state code already exists in NYSC database (mock or approved)
+    // — if so, the user should register directly, not submit a join request.
+    try {
+      await nyscService.getCorperByStateCode(normalised);
+      // If we get here, the corper exists — they should register instead
+      throw new ConflictError(
+        'Your state code is already in our database. Please go to the registration page and sign up directly.',
+      );
+    } catch (err) {
+      // NotFoundError means the code isn't in the NYSC database — that's expected, continue
+      if (err instanceof ConflictError) throw err;
+      // Any other error (NotFoundError, BadRequestError) means they need the join flow
+    }
+
     // Check if state code already exists in User table (already registered)
     const existingUser = await prisma.user.findUnique({ where: { stateCode: normalised } });
     if (existingUser) {
       throw new ConflictError('A user with this state code is already registered. Please login instead.');
-    }
-
-    // Check if state code already exists in ApprovedCorper table
-    const existingApproved = await prisma.approvedCorper.findUnique({ where: { stateCode: normalised } });
-    if (existingApproved) {
-      throw new ConflictError('This state code has already been approved. You can register now.');
     }
 
     // Check for existing pending/approved join request

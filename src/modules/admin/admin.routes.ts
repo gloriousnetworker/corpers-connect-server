@@ -54,4 +54,7 @@ router.get('/admins', requireSuperAdmin, adminController.listAdmins);
 router.post('/admins', requireSuperAdmin, adminController.createAdmin);
 router.patch('/admins/:adminId/deactivate', requireSuperAdmin, adminController.deactivateAdmin);
 
+// ── Cleanup: delete all join requests + approved corpers (SUPERADMIN only) ───
+router.delete('/cleanup/join-requests', requireSuperAdmin, adminController.cleanupJoinRequests);
+
 export default router;

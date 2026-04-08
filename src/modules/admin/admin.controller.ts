@@ -388,4 +388,23 @@ export const adminController = {
       next(err);
     }
   },
+
+  // ── Cleanup: delete all join requests + approved corpers ───────────────────
+  async cleanupJoinRequests(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { prisma } = await import('../../config/prisma');
+      const deletedJoinRequests = await prisma.joinRequest.deleteMany({});
+      const deletedApproved = await prisma.approvedCorper.deleteMany({});
+      res.json({
+        status: 'success',
+        data: {
+          joinRequestsDeleted: deletedJoinRequests.count,
+          approvedCorpersDeleted: deletedApproved.count,
+        },
+        message: 'All join requests and approved corper records have been cleared.',
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
 };
