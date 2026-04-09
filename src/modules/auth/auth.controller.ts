@@ -20,12 +20,17 @@ import {
 const REFRESH_COOKIE = 'cc_refresh_token';
 
 function refreshCookieOptions(): CookieOptions {
+  // Detect production by CLIENT_URL, not NODE_ENV — Railway does NOT auto-set
+  // NODE_ENV=production, so relying on it caused SameSite=Lax cookies in prod,
+  // which browsers block on cross-origin POST requests (frontend ≠ backend domain).
+  const isProd = !env.CLIENT_URL.includes('localhost');
   return {
     httpOnly: true,
-    secure: env.NODE_ENV === 'production',
-    // 'none' required because frontend (corpersconnect.com.ng) and backend
-    // (railway.app) are on different domains — lax/strict would block the cookie.
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: isProd,
+    // SameSite=None required for cross-origin cookies (corpersconnect.com.ng → railway.app).
+    // SameSite=Lax silently blocks the cookie on cross-origin POST — the root cause of
+    // "session expires on every page refresh".
+    sameSite: isProd ? 'none' : 'lax',
     // Restrict to the refresh endpoint so the cookie is never sent on other requests.
     path: '/api/v1/auth/refresh',
     maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days in ms
