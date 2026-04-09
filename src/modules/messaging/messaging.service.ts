@@ -48,20 +48,29 @@ export const messagingService = {
     const other = await prisma.user.findUnique({ where: { id: participantId } });
     if (!other || !other.isActive) throw new NotFoundError('User not found');
 
-    // Check for existing DM conversation between these two users
+    // Shared include shape — used for both the existing-DM lookup and the new create
+    // so the response shape is always identical.
+    const DM_INCLUDE = {
+      participants: { include: { user: { select: SENDER_SELECT } } },
+      messages: {
+        take: 1,
+        orderBy: { createdAt: 'desc' } as const,
+        include: { sender: { select: SENDER_SELECT } },
+      },
+    } as const;
+
+    // Check for existing DM conversation between these two users.
+    // Use AND [some, some] instead of every:{in:[...]} — more semantically correct
+    // and avoids the Prisma vacuous-truth edge case on empty participant sets.
     const existing = await prisma.conversation.findFirst({
       where: {
         type: 'DM',
-        participants: { every: { userId: { in: [userId, participantId] } } },
+        AND: [
+          { participants: { some: { userId } } },
+          { participants: { some: { userId: participantId } } },
+        ],
       },
-      include: {
-        participants: { include: { user: { select: SENDER_SELECT } } },
-        messages: {
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-          include: { sender: { select: SENDER_SELECT } },
-        },
-      },
+      include: DM_INCLUDE,
     });
 
     if (existing) return existing;
@@ -76,10 +85,7 @@ export const messagingService = {
           ],
         },
       },
-      include: {
-        participants: { include: { user: { select: SENDER_SELECT } } },
-        messages: { take: 1, orderBy: { createdAt: 'desc' } },
-      },
+      include: DM_INCLUDE,
     });
   },
 
