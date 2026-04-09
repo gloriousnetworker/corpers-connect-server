@@ -113,7 +113,7 @@ export const messagingService = {
 
   async listConversations(userId: string) {
     const participations = await prisma.conversationParticipant.findMany({
-      where: { userId, isArchived: false },
+      where: { userId, isArchived: false, conversation: { type: { not: 'MARKETPLACE' } } },
       orderBy: { conversation: { updatedAt: 'desc' } },
       include: {
         conversation: {

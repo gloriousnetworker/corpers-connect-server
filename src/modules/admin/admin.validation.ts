@@ -76,6 +76,12 @@ export const createAdminSchema = z.object({
   role: z.enum(['ADMIN', 'SUPERADMIN']).default('ADMIN'),
 });
 
+// ── Seller Management ────────────────────────────────────────────────────────
+
+export const deactivateSellerSchema = z.object({
+  reason: z.string().min(1).max(500),
+});
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AdminLoginDto = z.infer<typeof adminLoginSchema>;
@@ -88,3 +94,4 @@ export type ListSellerApplicationsDto = z.infer<typeof listSellerApplicationsSch
 export type ReviewSellerApplicationDto = z.infer<typeof reviewSellerApplicationSchema>;
 export type UpsertSettingDto = z.infer<typeof upsertSettingSchema>;
 export type CreateAdminDto = z.infer<typeof createAdminSchema>;
+export type DeactivateSellerDto = z.infer<typeof deactivateSellerSchema>;

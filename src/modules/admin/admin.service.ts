@@ -17,8 +17,11 @@ import {
   ReviewSellerApplicationDto,
   UpsertSettingDto,
   CreateAdminDto,
+  DeactivateSellerDto,
 } from './admin.validation';
 import { PLANS } from '../subscriptions/subscriptions.validation';
+import { emailService } from '../../shared/services/email.service';
+import { notificationsService } from '../notifications/notifications.service';
 
 // ── Internal audit helper ──────────────────────────────────────────────────────
 
@@ -577,6 +580,27 @@ export const adminService = {
     return { items: hasMore ? items.slice(0, limit) : items, hasMore };
   },
 
+  async getSellerApplication(appId: string) {
+    const app = await prisma.sellerApplication.findUnique({
+      where: { id: appId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            stateCode: true,
+            profilePicture: true,
+            servingState: true,
+          },
+        },
+      },
+    });
+    if (!app) throw new AppError('Seller application not found', 404);
+    return app;
+  },
+
   async approveSellerApplication(appId: string, adminId: string, dto: ReviewSellerApplicationDto, ipAddress?: string) {
     const app = await prisma.sellerApplication.findUnique({ where: { id: appId } });
     if (!app) throw new AppError('Application not found', 404);
@@ -585,6 +609,34 @@ export const adminService = {
     const updated = await prisma.sellerApplication.update({
       where: { id: appId },
       data: { status: 'APPROVED', reviewNote: dto.reviewNote, reviewedAt: new Date() },
+    });
+
+    // Auto-create seller profile
+    await prisma.sellerProfile.create({
+      data: {
+        userId: app.userId,
+        businessName: app.businessName,
+        businessDescription: app.businessDescription,
+        whatTheySell: app.whatTheySell,
+      },
+    });
+
+    // Send approval email
+    const user = await prisma.user.findUnique({
+      where: { id: app.userId },
+      select: { email: true, firstName: true },
+    });
+    if (user) {
+      void emailService.sendSellerApproved(user.email, user.firstName);
+    }
+
+    // Create in-app notification
+    void notificationsService.create({
+      recipientId: app.userId,
+      type: 'SELLER_APPROVED' as never,
+      entityType: 'SellerApplication',
+      entityId: appId,
+      content: "Your Mami Market seller application has been approved! You can start selling now.",
     });
 
     await audit(adminId, 'SELLER_APPROVED', { entityType: 'SellerApplication', entityId: appId, ipAddress });
@@ -601,8 +653,111 @@ export const adminService = {
       data: { status: 'REJECTED', reviewNote: dto.reviewNote, reviewedAt: new Date() },
     });
 
+    // Send rejection email
+    const user = await prisma.user.findUnique({
+      where: { id: app.userId },
+      select: { email: true, firstName: true },
+    });
+    if (user) {
+      void emailService.sendSellerRejected(user.email, user.firstName, dto.reviewNote || 'No reason provided');
+    }
+
+    // Create in-app notification
+    void notificationsService.create({
+      recipientId: app.userId,
+      type: 'SELLER_REJECTED' as never,
+      entityType: 'SellerApplication',
+      entityId: appId,
+      content: dto.reviewNote || 'Your Mami Market seller application was not approved.',
+    });
+
     await audit(adminId, 'SELLER_REJECTED', { entityType: 'SellerApplication', entityId: appId, ipAddress });
     return updated;
+  },
+
+  async deactivateSeller(userId: string, adminId: string, dto: DeactivateSellerDto, ipAddress?: string) {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId } });
+    if (!profile) throw new AppError('Seller profile not found', 404);
+    if (profile.sellerStatus === 'DEACTIVATED') throw new AppError('Seller is already deactivated', 400);
+
+    await prisma.sellerProfile.update({
+      where: { userId },
+      data: {
+        sellerStatus: 'DEACTIVATED',
+        deactivationReason: dto.reason,
+        deactivatedAt: new Date(),
+      },
+    });
+
+    // Deactivate all active listings
+    await prisma.marketplaceListing.updateMany({
+      where: { sellerId: userId, status: 'ACTIVE' },
+      data: { status: 'INACTIVE' },
+    });
+
+    // Send deactivation email
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true },
+    });
+    if (user) {
+      void emailService.sendSellerDeactivated(user.email, user.firstName, dto.reason);
+    }
+
+    // Create in-app notification
+    void notificationsService.create({
+      recipientId: userId,
+      type: 'SELLER_DEACTIVATED' as never,
+      entityType: 'SellerProfile',
+      entityId: userId,
+      content: `Your Mami Market seller profile has been deactivated. Reason: ${dto.reason}`,
+    });
+
+    await audit(adminId, 'SELLER_DEACTIVATED', {
+      entityType: 'SellerProfile',
+      entityId: userId,
+      details: { reason: dto.reason },
+      ipAddress,
+    });
+  },
+
+  async reinstateSeller(userId: string, adminId: string, ipAddress?: string) {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId } });
+    if (!profile) throw new AppError('Seller profile not found', 404);
+    if (profile.sellerStatus !== 'DEACTIVATED') throw new AppError('Seller is not deactivated', 400);
+
+    await prisma.sellerProfile.update({
+      where: { userId },
+      data: {
+        sellerStatus: 'ACTIVE',
+        deactivationReason: null,
+        deactivatedAt: null,
+      },
+    });
+
+    // Send reinstatement email
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true },
+    });
+    if (user) {
+      void emailService.sendSellerReinstated(user.email, user.firstName);
+    }
+
+    // Create in-app notification (reuse SELLER_APPROVED type)
+    void notificationsService.create({
+      recipientId: userId,
+      type: 'SELLER_APPROVED' as never,
+      entityType: 'SellerProfile',
+      entityId: userId,
+      content: 'Your Mami Market seller profile has been reinstated. You can start selling again!',
+    });
+
+    await audit(adminId, 'SELLER_REINSTATED', {
+      entityType: 'SellerProfile',
+      entityId: userId,
+      ipAddress,
+    });
   },
 
   // ── System Settings ───────────────────────────────────────────────────────────

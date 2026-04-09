@@ -39,8 +39,13 @@ router.patch('/reports/:reportId', adminController.reviewReport);
 
 // ── Seller Applications ───────────────────────────────────────────────────────
 router.get('/seller-applications', adminController.listSellerApplications);
+router.get('/seller-applications/:appId', adminController.getSellerApplication);
 router.patch('/seller-applications/:appId/approve', adminController.approveSellerApplication);
 router.patch('/seller-applications/:appId/reject', adminController.rejectSellerApplication);
+
+// ── Seller Management ────────────────────────────────────────────────────────
+router.patch('/sellers/:userId/deactivate', adminController.deactivateSeller);
+router.patch('/sellers/:userId/reinstate', adminController.reinstateSeller);
 
 // ── System Settings ───────────────────────────────────────────────────────────
 router.get('/settings', adminController.getSettings);

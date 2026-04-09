@@ -16,6 +16,13 @@ router.post('/apply', authenticate, marketplaceController.applyAsSeller);
  */
 router.get('/my-application', authenticate, marketplaceController.getMyApplication);
 
+// ── My Seller Profile ────────────────────────────────────────────────────────
+
+/** GET /api/v1/marketplace/my-seller-profile
+ *  Get own seller profile with aggregated stats.
+ */
+router.get('/my-seller-profile', authenticate, marketplaceController.getMySellerProfile);
+
 // ── My Listings ───────────────────────────────────────────────────────────────
 
 /** GET /api/v1/marketplace/my-listings
@@ -23,6 +30,19 @@ router.get('/my-application', authenticate, marketplaceController.getMyApplicati
  *  Query: ?cursor=&limit=20
  */
 router.get('/my-listings', authenticate, marketplaceController.getMyListings);
+
+// ── Seller Profile (Public) ──────────────────────────────────────────────────
+
+/** GET /api/v1/marketplace/sellers/:userId
+ *  Get a seller's public profile.
+ */
+router.get('/sellers/:userId', optionalAuth, marketplaceController.getSellerProfile);
+
+/** GET /api/v1/marketplace/sellers/:userId/listings
+ *  Paginated active listings for a seller (public).
+ *  Query: ?cursor=&limit=20
+ */
+router.get('/sellers/:userId/listings', optionalAuth, marketplaceController.getSellerListings);
 
 // ── Listings ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +85,28 @@ router.post('/listings/:listingId/inquire', authenticate, marketplaceController.
  */
 router.get('/listings/:listingId/inquiries', authenticate, marketplaceController.getListingInquiries);
 
+// ── Listing Comments (Bidding) ────────────────────────────────────────────────
+
+/** POST /api/v1/marketplace/listings/:listingId/comments
+ *  Create a comment or bid on a listing.
+ */
+router.post('/listings/:listingId/comments', authenticate, marketplaceController.createListingComment);
+
+/** GET /api/v1/marketplace/listings/:listingId/comments
+ *  Get paginated top-level comments for a listing. Auth optional.
+ */
+router.get('/listings/:listingId/comments', optionalAuth, marketplaceController.getListingComments);
+
+/** PATCH /api/v1/marketplace/listings/:listingId/comments/:commentId
+ *  Update own comment.
+ */
+router.patch('/listings/:listingId/comments/:commentId', authenticate, marketplaceController.updateListingComment);
+
+/** DELETE /api/v1/marketplace/listings/:listingId/comments/:commentId
+ *  Soft delete a comment (author or listing seller).
+ */
+router.delete('/listings/:listingId/comments/:commentId', authenticate, marketplaceController.deleteListingComment);
+
 // ── Reviews ───────────────────────────────────────────────────────────────────
 
 /** GET /api/v1/marketplace/listings/:listingId/reviews
@@ -81,5 +123,23 @@ router.post('/listings/:listingId/reviews', authenticate, marketplaceController.
  *  Delete own review.
  */
 router.delete('/listings/:listingId/reviews/:reviewId', authenticate, marketplaceController.deleteReview);
+
+// ── Marketplace Conversations ─────────────────────────────────────────────────
+
+/** POST /api/v1/marketplace/listings/:listingId/chat
+ *  Start or get existing marketplace conversation with a seller.
+ */
+router.post('/listings/:listingId/chat', authenticate, marketplaceController.startMarketplaceChat);
+
+/** GET /api/v1/marketplace/conversations
+ *  Get all marketplace conversations for the authenticated user.
+ *  Query: ?cursor=&limit=20
+ */
+router.get('/conversations', authenticate, marketplaceController.getMarketplaceConversations);
+
+/** GET /api/v1/marketplace/conversations/:conversationId
+ *  Get a single marketplace conversation with full details.
+ */
+router.get('/conversations/:conversationId', authenticate, marketplaceController.getMarketplaceConversation);
 
 export default router;

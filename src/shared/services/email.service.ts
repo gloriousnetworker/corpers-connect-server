@@ -223,4 +223,125 @@ export const emailService = {
     `);
     await send(to, 'Update on your Corpers Connect join request', html, 'join-rejected');
   },
+
+  // ── Mami Market Emails ─────────────────────────────────────────────────────
+
+  async sendSellerApproved(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Great news! Your Mami Market shop is now live! 🎉</p>
+      <div style="background: #f0faf4; border: 2px solid #008751; border-radius: 8px;
+                  padding: 20px; text-align: center; margin: 20px 0;">
+        <p style="color: #008751; font-size: 18px; font-weight: bold; margin: 0;">
+          You're officially a Mami Marketer!
+        </p>
+        <p style="color: #555; font-size: 14px; margin: 8px 0 0;">
+          Your seller profile has been approved and you can start listing products right away.
+        </p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Open Mami Market
+        </a>
+      </div>
+      <p style="color: #888; font-size: 13px;">
+        Start adding your products and connect with fellow corps members looking to buy!
+      </p>
+    `);
+    await send(to, 'Your Mami Market shop is now live!', html, 'seller-approved');
+  },
+
+  async sendSellerRejected(to: string, name: string, reason: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const safeReason = escapeHtml(reason);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">We've reviewed your Mami Market seller application and unfortunately it could not be approved at this time.</p>
+      <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <p style="color: #991B1B; font-size: 14px; margin: 0;"><strong>Reason:</strong> ${safeReason}</p>
+      </div>
+      <p style="color: #555; font-size: 14px;">
+        You can reapply with the correct information. Make sure your business details are accurate and complete.
+        If you believe this was a mistake, please contact support.
+      </p>
+    `);
+    await send(to, 'Update on your Mami Market seller application', html, 'seller-rejected');
+  },
+
+  async sendSellerDeactivated(to: string, name: string, reason: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const safeReason = escapeHtml(reason);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Your Mami Market seller profile has been deactivated.</p>
+      <div style="background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <p style="color: #9A3412; font-size: 14px; margin: 0;"><strong>Reason:</strong> ${safeReason}</p>
+      </div>
+      <p style="color: #555; font-size: 14px;">
+        All your active listings have been set to inactive. To reinstate your seller profile,
+        please contact the admin team for assistance.
+      </p>
+      <p style="color: #888; font-size: 13px;">
+        If you believe this was done in error, reply to this email or reach out through the app.
+      </p>
+    `);
+    await send(to, 'Your Mami Market seller profile has been deactivated', html, 'seller-deactivated');
+  },
+
+  async sendSellerReinstated(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Good news! Your Mami Market seller profile has been reinstated.</p>
+      <div style="background: #f0faf4; border: 2px solid #008751; border-radius: 8px;
+                  padding: 20px; text-align: center; margin: 20px 0;">
+        <p style="color: #008751; font-size: 18px; font-weight: bold; margin: 0;">
+          Welcome back, Mami Marketer!
+        </p>
+        <p style="color: #555; font-size: 14px; margin: 8px 0 0;">
+          You can start selling again. Re-activate your listings to make them visible to buyers.
+        </p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Open Mami Market
+        </a>
+      </div>
+    `);
+    await send(to, 'Your Mami Market seller profile has been reinstated!', html, 'seller-reinstated');
+  },
+
+  async sendMarketplaceMessage(
+    to: string,
+    name: string,
+    senderName: string,
+    listingTitle: string,
+    messagePreview: string,
+    conversationId: string,
+  ): Promise<void> {
+    const safeName = escapeHtml(name);
+    const safeSender = escapeHtml(senderName);
+    const safeTitle = escapeHtml(listingTitle);
+    const safePreview = escapeHtml(messagePreview);
+    const replyUrl = `${env.CLIENT_URL}?mkt-conv=${encodeURIComponent(conversationId)}`;
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">You have a new message about your listing: <strong>${safeTitle}</strong></p>
+      <div style="background: #f9f9f9; border-left: 4px solid #008751; border-radius: 6px;
+                  padding: 16px 20px; margin: 20px 0;">
+        <p style="color: #333; font-size: 14px; margin: 0 0 6px; font-weight: bold;">${safeSender}</p>
+        <p style="color: #555; font-size: 14px; margin: 0;">${safePreview}</p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${replyUrl}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Reply Now
+        </a>
+      </div>
+    `);
+    await send(to, `New message about your listing: ${listingTitle}`, html, 'marketplace-message');
+  },
 };

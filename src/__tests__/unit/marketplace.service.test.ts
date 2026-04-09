@@ -22,6 +22,9 @@ jest.mock('../../config/prisma', () => ({
       upsert: jest.fn(),
       findMany: jest.fn(),
     },
+    sellerProfile: {
+      findUnique: jest.fn(),
+    },
     user: {
       findUnique: jest.fn(),
     },
@@ -51,6 +54,8 @@ const LISTING_ID = 'listing-1';
 
 const mockApprovedApp = { userId: SELLER_ID, status: 'APPROVED', idDocUrl: 'https://cdn/doc.jpg' };
 const mockPendingApp = { userId: SELLER_ID, status: 'PENDING', idDocUrl: 'https://cdn/doc.jpg' };
+const mockSellerDto = { businessName: 'Test Biz', businessDescription: 'We sell great stuff here', whatTheySell: 'Electronics' };
+const mockActiveProfile = { userId: SELLER_ID, sellerStatus: 'ACTIVE' };
 
 const mockListing = {
   id: LISTING_ID,
@@ -82,7 +87,7 @@ describe('marketplaceService.applyAsSeller', () => {
     (mockPrisma.sellerApplication.findUnique as jest.Mock).mockResolvedValue(null);
     (mockPrisma.sellerApplication.create as jest.Mock).mockResolvedValue(mockPendingApp);
 
-    const result = await marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg');
+    const result = await marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg', mockSellerDto);
     expect(result.status).toBe('PENDING');
     expect(mockPrisma.sellerApplication.create).toHaveBeenCalledTimes(1);
   });
@@ -91,7 +96,7 @@ describe('marketplaceService.applyAsSeller', () => {
     (mockPrisma.sellerApplication.findUnique as jest.Mock).mockResolvedValue(mockApprovedApp);
 
     await expect(
-      marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg'),
+      marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg', mockSellerDto),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -99,7 +104,7 @@ describe('marketplaceService.applyAsSeller', () => {
     (mockPrisma.sellerApplication.findUnique as jest.Mock).mockResolvedValue(mockPendingApp);
 
     await expect(
-      marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg'),
+      marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg', mockSellerDto),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -107,7 +112,7 @@ describe('marketplaceService.applyAsSeller', () => {
     (mockPrisma.sellerApplication.findUnique as jest.Mock).mockResolvedValue({ ...mockPendingApp, status: 'REJECTED' });
     (mockPrisma.sellerApplication.update as jest.Mock).mockResolvedValue(mockPendingApp);
 
-    await marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg');
+    await marketplaceService.applyAsSeller(SELLER_ID, 'https://cdn/doc.jpg', mockSellerDto);
     expect(mockPrisma.sellerApplication.update).toHaveBeenCalledTimes(1);
   });
 });
@@ -117,6 +122,7 @@ describe('marketplaceService.createListing', () => {
 
   it('creates a listing for approved seller', async () => {
     (mockPrisma.sellerApplication.findUnique as jest.Mock).mockResolvedValue(mockApprovedApp);
+    (mockPrisma.sellerProfile.findUnique as jest.Mock).mockResolvedValue(mockActiveProfile);
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ servingState: 'Lagos' });
     (mockPrisma.marketplaceListing.create as jest.Mock).mockResolvedValue(mockListing);
 
@@ -138,6 +144,7 @@ describe('marketplaceService.createListing', () => {
 
   it('throws 400 if no images provided', async () => {
     (mockPrisma.sellerApplication.findUnique as jest.Mock).mockResolvedValue(mockApprovedApp);
+    (mockPrisma.sellerProfile.findUnique as jest.Mock).mockResolvedValue(mockActiveProfile);
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ servingState: 'Lagos' });
 
     await expect(

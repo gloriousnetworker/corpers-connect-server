@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 export const applySellerSchema = z.object({
-  // idDoc uploaded as multipart file — no body fields required beyond the file
+  businessName: z.string().min(2).max(100),
+  businessDescription: z.string().min(10).max(1000),
+  whatTheySell: z.string().min(3).max(200),
 });
 
 export const createListingSchema = z.object({
@@ -50,8 +52,28 @@ export const listReviewsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+export const createListingCommentSchema = z.object({
+  content: z.string().min(1).max(1000),
+  bidAmount: z.coerce.number().positive().optional(),
+  parentId: z.string().optional(),
+});
+
+export const updateListingCommentSchema = z.object({
+  content: z.string().min(1).max(1000),
+  bidAmount: z.coerce.number().positive().optional(),
+});
+
+export const listListingCommentsSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export type ApplySellerDto = z.infer<typeof applySellerSchema>;
 export type CreateListingDto = z.infer<typeof createListingSchema>;
 export type UpdateListingDto = z.infer<typeof updateListingSchema>;
 export type ListListingsDto = z.infer<typeof listListingsSchema>;
 export type CreateReviewDto = z.infer<typeof createReviewSchema>;
 export type ListReviewsDto = z.infer<typeof listReviewsSchema>;
+export type CreateListingCommentDto = z.infer<typeof createListingCommentSchema>;
+export type UpdateListingCommentDto = z.infer<typeof updateListingCommentSchema>;
+export type ListListingCommentsDto = z.infer<typeof listListingCommentsSchema>;

@@ -224,6 +224,9 @@ export const notificationsService = {
 function buildDeepLinkUrl(entityType?: string | null, entityId?: string | null): string {
   if (entityType === 'Post' && entityId) return `/post/${entityId}`;
   if (entityType === 'Conversation' && entityId) return `/?conv=${entityId}`;
+  if (entityType === 'MarketplaceConversation' && entityId) return `/?mkt-conv=${entityId}`;
+  if (entityType === 'SellerProfile' || entityType === 'SellerApplication') return '/?tab=marketplace';
+  if (entityType === 'MarketplaceListing' && entityId) return `/?listing=${entityId}`;
   return '/';
 }
 
@@ -235,7 +238,7 @@ function buildPushTitle(notification: {
     ? `${notification.actor.firstName} ${notification.actor.lastName}`
     : 'Someone';
 
-  const map: Record<NotificationType, string> = {
+  const map: Record<string, string> = {
     FOLLOW: `${name} followed you`,
     POST_LIKE: `${name} liked your post`,
     POST_COMMENT: `${name} commented on your post`,
@@ -250,6 +253,11 @@ function buildPushTitle(notification: {
     LEVEL_UP: 'Congratulations! You levelled up',
     SYSTEM: 'New system notification',
     BROADCAST: 'New announcement',
+    SELLER_APPROVED: "You're now a Mami Marketer!",
+    SELLER_REJECTED: 'Mami Marketer application update',
+    SELLER_DEACTIVATED: 'Your Mami Market profile has been deactivated',
+    LISTING_COMMENT: `${name} commented on your listing`,
+    MARKETPLACE_MESSAGE: 'New marketplace message',
   };
   return map[notification.type] ?? 'New notification';
 }

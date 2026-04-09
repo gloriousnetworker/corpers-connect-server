@@ -57,6 +57,7 @@ enum MessageType {
 enum ConversationType {
   DM
   GROUP
+  MARKETPLACE
 }
 
 enum ParticipantRole {
@@ -114,6 +115,11 @@ enum NotificationType {
   MARKET_INQUIRY
   LISTING_APPROVED
   LISTING_REJECTED
+  SELLER_APPROVED
+  SELLER_REJECTED
+  SELLER_DEACTIVATED
+  LISTING_COMMENT
+  MARKETPLACE_MESSAGE
   LEVEL_UP
   SYSTEM
   BROADCAST
@@ -139,6 +145,11 @@ enum SellerApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum SellerStatus {
+  ACTIVE
+  DEACTIVATED
 }
 
 enum ApplicationStatus {
@@ -176,6 +187,8 @@ enum AuditAction {
   LISTING_REJECTED
   SELLER_APPROVED
   SELLER_REJECTED
+  SELLER_DEACTIVATED
+  SELLER_REINSTATED
   BROADCAST_SENT
   SUBSCRIPTION_GRANTED
   SUBSCRIPTION_REVOKED
@@ -243,6 +256,10 @@ model User {
   callsAsInitiator      CallLog[]              @relation("caller")
   callsAsReceiver       CallLog[]              @relation("receiver")
   sellerApplication     SellerApplication?
+  sellerProfile         SellerProfile?
+  listingComments       ListingComment[]       @relation("ListingCommentAuthor")
+  marketplaceBuyerConvs  MarketplaceConversation[] @relation("MarketplaceBuyer")
+  marketplaceSellerConvs MarketplaceConversation[] @relation("MarketplaceSeller")
   highlights            StoryHighlight[]
   stories               Story[]
 
@@ -456,8 +473,9 @@ model Conversation {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  participants ConversationParticipant[]
-  messages     Message[]
+  participants            ConversationParticipant[]
+  messages                Message[]
+  marketplaceConversation MarketplaceConversation?
 }
 
 model ConversationParticipant {
@@ -572,9 +590,11 @@ model MarketplaceListing {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  seller       User                @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  inquiries    ListingInquiry[]
-  reviews      ListingReview[]
+  seller                  User                      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  inquiries               ListingInquiry[]
+  reviews                 ListingReview[]
+  comments                ListingComment[]
+  marketplaceConversations MarketplaceConversation[]
 
   @@index([sellerId])
   @@index([servingState])
@@ -612,16 +632,73 @@ model ListingReview {
 }
 
 model SellerApplication {
-  id          String                  @id @default(cuid())
-  userId      String                  @unique
-  idDocUrl    String
-  status      SellerApplicationStatus @default(PENDING)
-  reviewNote  String?
-  reviewedAt  DateTime?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
+  id                  String                  @id @default(cuid())
+  userId              String                  @unique
+  businessName        String                  @default("")
+  businessDescription String                  @default("") @db.Text
+  whatTheySell        String                  @default("")
+  idDocUrl            String
+  status              SellerApplicationStatus @default(PENDING)
+  reviewNote          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SellerProfile {
+  id                  String       @id @default(cuid())
+  userId              String       @unique
+  businessName        String
+  businessDescription String       @db.Text
+  whatTheySell        String
+  sellerStatus        SellerStatus @default(ACTIVE)
+  deactivationReason  String?
+  deactivatedAt       DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ListingComment {
+  id        String   @id @default(cuid())
+  listingId String
+  authorId  String
+  parentId  String?
+  content   String   @db.Text
+  bidAmount Float?
+  isEdited  Boolean  @default(false)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listing MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  author  User               @relation("ListingCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  parent  ListingComment?    @relation("ListingCommentReplies", fields: [parentId], references: [id])
+  replies ListingComment[]   @relation("ListingCommentReplies")
+
+  @@index([listingId])
+  @@index([parentId])
+}
+
+model MarketplaceConversation {
+  id             String   @id @default(cuid())
+  conversationId String   @unique
+  listingId      String
+  buyerId        String
+  sellerId       String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  listing      MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer        User               @relation("MarketplaceBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller       User               @relation("MarketplaceSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, buyerId])
+  @@index([buyerId])
+  @@index([sellerId])
 }
 
 // ─── OPPORTUNITIES ────────────────────────────────────────────────────────────

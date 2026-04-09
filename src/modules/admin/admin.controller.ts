@@ -14,6 +14,7 @@ import {
   reviewSellerApplicationSchema,
   upsertSettingSchema,
   createAdminSchema,
+  deactivateSellerSchema,
 } from './admin.validation';
 import { ValidationError } from '../../shared/utils/errors';
 
@@ -262,6 +263,36 @@ export const adminController = {
         ip(req),
       );
       res.json({ status: 'success', data: app });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getSellerApplication(req: Request, res: Response, next: NextFunction) {
+    try {
+      const app = await adminService.getSellerApplication(p(req.params.appId));
+      res.json({ status: 'success', data: app });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async deactivateSeller(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = deactivateSellerSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+
+      await adminService.deactivateSeller(p(req.params.userId), req.user!.id, parsed.data, ip(req));
+      res.json({ status: 'success', data: null, message: 'Seller deactivated' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async reinstateSeller(req: Request, res: Response, next: NextFunction) {
+    try {
+      await adminService.reinstateSeller(p(req.params.userId), req.user!.id, ip(req));
+      res.json({ status: 'success', data: null, message: 'Seller reinstated' });
     } catch (err) {
       next(err);
     }
