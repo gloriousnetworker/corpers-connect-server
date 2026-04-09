@@ -61,6 +61,11 @@ router.delete('/:conversationId/participants/:userId', messagingController.remov
  */
 router.post('/:conversationId/messages', messagingController.sendMessage);
 
+/** DELETE /api/v1/conversations/:conversationId/messages
+ *  Clear all messages in a conversation for the authenticated user (soft delete).
+ */
+router.delete('/:conversationId/messages', messagingController.clearMessages);
+
 /** GET /api/v1/conversations/:conversationId/messages/search
  *  Full-text search within a conversation. Query: ?q=&cursor=&limit=20
  */

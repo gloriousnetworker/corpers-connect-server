@@ -196,16 +196,39 @@ export const messagingService = {
   async updateParticipantSettings(
     userId: string,
     conversationId: string,
-    settings: { isArchived?: boolean; isPinned?: boolean; isMuted?: boolean; mutedUntil?: string },
+    settings: { isArchived?: boolean; isPinned?: boolean; isMuted?: boolean; mutedUntil?: string; markAsUnread?: boolean },
   ) {
     await assertParticipant(conversationId, userId);
+
+    const { markAsUnread, ...rest } = settings;
 
     return prisma.conversationParticipant.update({
       where: { conversationId_userId: { conversationId, userId } },
       data: {
-        ...settings,
-        mutedUntil: settings.mutedUntil ? new Date(settings.mutedUntil) : undefined,
+        ...rest,
+        mutedUntil: rest.mutedUntil ? new Date(rest.mutedUntil) : undefined,
+        // markAsUnread=true resets lastReadAt to null so all messages appear unread
+        ...(markAsUnread === true && { lastReadAt: null }),
       },
+    });
+  },
+
+  async clearConversationMessages(userId: string, conversationId: string) {
+    await assertParticipant(conversationId, userId);
+
+    // Soft-delete all messages for this user by pushing their userId into deletedFor
+    // Prisma updateMany with array push on Postgres arrays
+    await prisma.$executeRaw`
+      UPDATE "Message"
+      SET "deletedFor" = array_append("deletedFor", ${userId}::text)
+      WHERE "conversationId" = ${conversationId}
+        AND NOT (${userId}::text = ANY("deletedFor"))
+    `;
+
+    // Update lastReadAt so unread count resets to 0
+    await prisma.conversationParticipant.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data: { lastReadAt: new Date() },
     });
   },
 

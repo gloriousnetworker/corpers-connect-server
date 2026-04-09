@@ -222,6 +222,18 @@ export const messagingController = {
     }
   },
 
+  async clearMessages(req: Request, res: Response, next: NextFunction) {
+    try {
+      await messagingService.clearConversationMessages(
+        req.user!.id,
+        p(req.params.conversationId),
+      );
+      sendSuccess(res, null, 'Chat cleared');
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // ── Reactions ─────────────────────────────────────────────────────────────────
 
   async reactToMessage(req: Request, res: Response, next: NextFunction) {

@@ -25,6 +25,7 @@ export const updateParticipantSettingsSchema = z.object({
   isPinned: z.boolean().optional(),
   isMuted: z.boolean().optional(),
   mutedUntil: z.string().datetime().optional(),
+  markAsUnread: z.boolean().optional(),
 });
 
 export const sendMessageSchema = z.object({
