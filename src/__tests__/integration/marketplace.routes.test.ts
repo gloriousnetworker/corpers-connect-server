@@ -51,7 +51,23 @@ function makeToken(userId: string) {
 async function createApprovedSeller() {
   const user = await createUser();
   await prisma.sellerApplication.create({
-    data: { userId: user.id, idDocUrl: 'https://cdn/doc.jpg', status: 'APPROVED' },
+    data: {
+      userId: user.id,
+      idDocUrl: 'https://cdn/doc.jpg',
+      status: 'APPROVED',
+      businessName: 'Test Business',
+      businessDescription: 'We sell great quality products',
+      whatTheySell: 'Electronics',
+    },
+  });
+  await prisma.sellerProfile.create({
+    data: {
+      userId: user.id,
+      businessName: 'Test Business',
+      businessDescription: 'We sell great quality products',
+      whatTheySell: 'Electronics',
+      sellerStatus: 'ACTIVE',
+    },
   });
   return { user, token: makeToken(user.id) };
 }
@@ -100,6 +116,9 @@ describe('POST /api/v1/marketplace/apply', () => {
     const res = await request(app)
       .post('/api/v1/marketplace/apply')
       .set('Authorization', `Bearer ${token}`)
+      .field('businessName', 'Test Business')
+      .field('businessDescription', 'We sell great quality products')
+      .field('whatTheySell', 'Electronics and gadgets')
       .attach('idDoc', TINY_PNG, { filename: 'id.png', contentType: 'image/png' });
 
     expect(res.status).toBe(201);
@@ -127,6 +146,9 @@ describe('POST /api/v1/marketplace/apply', () => {
     const res = await request(app)
       .post('/api/v1/marketplace/apply')
       .set('Authorization', `Bearer ${token}`)
+      .field('businessName', 'Test Business')
+      .field('businessDescription', 'We sell great quality products')
+      .field('whatTheySell', 'Electronics and gadgets')
       .attach('idDoc', TINY_PNG, { filename: 'id.png', contentType: 'image/png' });
 
     expect(res.status).toBe(409);

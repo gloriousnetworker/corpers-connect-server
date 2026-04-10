@@ -202,11 +202,12 @@ describe('messagingService.deleteMessage', () => {
 
   it('soft-deletes for all when sender requests it', async () => {
     (mockPrisma.message.findUnique as jest.Mock).mockResolvedValue(mockMessage);
-    (mockPrisma.message.update as jest.Mock).mockResolvedValue({});
+    (mockPrisma.message.update as jest.Mock).mockResolvedValue({ lockedFor: [] });
 
     await messagingService.deleteMessage(USER_A, CONV_ID, MSG_ID, 'all');
+    // Content/mediaUrl are preserved so locked-in users can still see the message
     expect(mockPrisma.message.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { isDeleted: true, content: null, mediaUrl: null } }),
+      expect.objectContaining({ data: { isDeleted: true } }),
     );
   });
 

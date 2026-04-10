@@ -30,8 +30,15 @@ jest.mock('../../config/env', () => ({
   },
 }));
 
+jest.mock('../../modules/nysc/nysc.service', () => ({
+  nyscService: {
+    getCorperByStateCode: jest.fn(),
+  },
+}));
+
 import { prisma } from '../../config/prisma';
 import { emailService } from '../../shared/services/email.service';
+import { nyscService } from '../../modules/nysc/nysc.service';
 import { joinRequestsService } from '../../modules/join-requests/join-requests.service';
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
@@ -50,9 +57,15 @@ describe('joinRequestsService.submit', () => {
     batch: '2025C',
   };
 
+  // Helper: make nyscService throw NotFoundError (state code not in NYSC DB — expected path)
+  const mockNyscNotFound = () =>
+    (nyscService.getCorperByStateCode as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('Not found'), { statusCode: 404 }),
+    );
+
   it('creates a new join request when no conflicts', async () => {
+    mockNyscNotFound();
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (mockPrisma.approvedCorper.findUnique as jest.Mock).mockResolvedValue(null);
     (mockPrisma.joinRequest.findFirst as jest.Mock).mockResolvedValue(null);
     (mockPrisma.joinRequest.create as jest.Mock).mockResolvedValue({ id: 'jr1', ...dto, status: 'PENDING' });
 
@@ -62,30 +75,38 @@ describe('joinRequestsService.submit', () => {
     expect(result.status).toBe('PENDING');
   });
 
+  it('throws ConflictError if state code already in NYSC database', async () => {
+    (nyscService.getCorperByStateCode as jest.Mock).mockResolvedValue({ stateCode: dto.stateCode });
+
+    await expect(joinRequestsService.submit(dto, 'doc.pdf')).rejects.toThrow(/registration page|register/i);
+  });
+
   it('throws ConflictError if user already registered', async () => {
+    mockNyscNotFound();
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u1' });
 
     await expect(joinRequestsService.submit(dto, 'doc.pdf')).rejects.toThrow(/already registered/i);
   });
 
-  it('throws ConflictError if already approved', async () => {
+  it('throws ConflictError if previous join request was already approved', async () => {
+    mockNyscNotFound();
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (mockPrisma.approvedCorper.findUnique as jest.Mock).mockResolvedValue({ id: 'ac1' });
+    (mockPrisma.joinRequest.findFirst as jest.Mock).mockResolvedValue({ id: 'jr1', status: 'APPROVED' });
 
-    await expect(joinRequestsService.submit(dto, 'doc.pdf')).rejects.toThrow(/already been approved/i);
+    await expect(joinRequestsService.submit(dto, 'doc.pdf')).rejects.toThrow(/already approved/i);
   });
 
   it('throws ConflictError if pending request exists', async () => {
+    mockNyscNotFound();
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (mockPrisma.approvedCorper.findUnique as jest.Mock).mockResolvedValue(null);
     (mockPrisma.joinRequest.findFirst as jest.Mock).mockResolvedValue({ id: 'jr1', status: 'PENDING' });
 
     await expect(joinRequestsService.submit(dto, 'doc.pdf')).rejects.toThrow(/pending/i);
   });
 
   it('allows resubmission if previous request was rejected', async () => {
+    mockNyscNotFound();
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (mockPrisma.approvedCorper.findUnique as jest.Mock).mockResolvedValue(null);
     (mockPrisma.joinRequest.findFirst as jest.Mock).mockResolvedValue({ id: 'jr1', status: 'REJECTED' });
     (mockPrisma.joinRequest.update as jest.Mock).mockResolvedValue({ id: 'jr1', ...dto, status: 'PENDING' });
 
