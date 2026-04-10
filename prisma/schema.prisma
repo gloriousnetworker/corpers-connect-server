@@ -508,6 +508,7 @@ model Message {
   isDeleted      Boolean     @default(false)
   isPinned       Boolean     @default(false)
   deletedFor     String[]    @default([])
+  lockedFor      String[]    @default([])
   deliveredAt    DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt

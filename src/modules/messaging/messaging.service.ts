@@ -330,6 +330,69 @@ export const messagingService = {
     return message;
   },
 
+  async listArchivedConversations(userId: string) {
+    const participations = await prisma.conversationParticipant.findMany({
+      where: { userId, isArchived: true, conversation: { type: { not: 'MARKETPLACE' } } },
+      orderBy: { conversation: { updatedAt: 'desc' } },
+      include: {
+        conversation: {
+          include: {
+            participants: {
+              include: { user: { select: SENDER_SELECT } },
+            },
+            messages: {
+              where: { isDeleted: false },
+              take: 1,
+              orderBy: { createdAt: 'desc' },
+              include: { sender: { select: SENDER_SELECT } },
+            },
+          },
+        },
+      },
+    });
+
+    return Promise.all(
+      participations.map(async (p) => {
+        const { conversation } = p;
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: conversation.id,
+            isDeleted: false,
+            createdAt: { gt: p.lastReadAt ?? new Date(0) },
+            senderId: { not: userId },
+          },
+        });
+        return { ...p, conversation: { ...conversation, unreadCount } };
+      }),
+    );
+  },
+
+  async lockMessage(userId: string, conversationId: string, messageId: string) {
+    await assertParticipant(conversationId, userId);
+    const message = await prisma.message.findUnique({ where: { id: messageId }, select: { conversationId: true, senderId: true, isDeleted: true, lockedFor: true } });
+    if (!message || message.conversationId !== conversationId) throw new NotFoundError('Message not found');
+    if (message.senderId === userId) throw new BadRequestError('Cannot lock your own message');
+    if (message.isDeleted) throw new BadRequestError('Cannot lock a message that has already been deleted');
+    if (message.lockedFor.includes(userId)) return; // already locked
+
+    return prisma.message.update({
+      where: { id: messageId },
+      data: { lockedFor: { push: userId } },
+      select: { id: true, lockedFor: true },
+    });
+  },
+
+  async unlockMessage(userId: string, conversationId: string, messageId: string) {
+    await assertParticipant(conversationId, userId);
+    const message = await prisma.message.findUnique({ where: { id: messageId }, select: { conversationId: true, lockedFor: true } });
+    if (!message || message.conversationId !== conversationId) throw new NotFoundError('Message not found');
+
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { lockedFor: message.lockedFor.filter((id) => id !== userId) },
+    });
+  },
+
   async getMessages(
     userId: string,
     conversationId: string,
@@ -341,7 +404,11 @@ export const messagingService = {
     const rows = await prisma.message.findMany({
       where: {
         conversationId,
-        isDeleted: false,
+        // Show non-deleted messages OR deleted messages the viewer has locked in
+        OR: [
+          { isDeleted: false },
+          { isDeleted: true, lockedFor: { has: userId } },
+        ],
         NOT: { deletedFor: { has: userId } },
       },
       take: limit + 1,
@@ -374,7 +441,10 @@ export const messagingService = {
     const rows = await prisma.message.findMany({
       where: {
         conversationId,
-        isDeleted: false,
+        OR: [
+          { isDeleted: false },
+          { isDeleted: true, lockedFor: { has: userId } },
+        ],
         NOT: { deletedFor: { has: userId } },
         content: { contains: q.trim(), mode: 'insensitive' },
       },
@@ -410,24 +480,36 @@ export const messagingService = {
     conversationId: string,
     messageId: string,
     deleteFor: 'me' | 'all',
-  ) {
+  ): Promise<{ lockedFor: string[] }> {
     const message = await prisma.message.findUnique({ where: { id: messageId } });
     if (!message || message.conversationId !== conversationId) {
       throw new NotFoundError('Message not found');
     }
 
     if (deleteFor === 'all') {
-      if (message.senderId !== userId) throw new ForbiddenError('Cannot delete this message for all');
-      await prisma.message.update({
+      if (message.senderId !== userId) throw new ForbiddenError('Cannot delete this message for everyone');
+
+      // 24-hour window: delete-for-everyone only allowed within 24 hrs of sending
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      if (message.createdAt < cutoff) {
+        throw new ForbiddenError('You can only delete for everyone within 24 hours of sending');
+      }
+
+      // Set isDeleted but DO NOT null content/mediaUrl — users who locked the message
+      // still need to see the original content.
+      const updated = await prisma.message.update({
         where: { id: messageId },
-        data: { isDeleted: true, content: null, mediaUrl: null },
+        data: { isDeleted: true },
+        select: { lockedFor: true },
       });
+      return { lockedFor: updated.lockedFor };
     } else {
       // Delete for me only — add userId to deletedFor array
       await prisma.message.update({
         where: { id: messageId },
         data: { deletedFor: { push: userId } },
       });
+      return { lockedFor: [] };
     }
   },
 

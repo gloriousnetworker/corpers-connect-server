@@ -106,4 +106,14 @@ router.delete('/:conversationId/messages/:messageId/reactions', messagingControl
  */
 router.patch('/:conversationId/messages/:messageId/pin', messagingController.pinMessage);
 
+/** POST /api/v1/conversations/:conversationId/messages/:messageId/lock
+ *  Lock a received message in — protects it from sender's "delete for everyone".
+ */
+router.post('/:conversationId/messages/:messageId/lock', messagingController.lockMessage);
+
+/** DELETE /api/v1/conversations/:conversationId/messages/:messageId/lock
+ *  Unlock a previously locked message.
+ */
+router.delete('/:conversationId/messages/:messageId/lock', messagingController.unlockMessage);
+
 export default router;

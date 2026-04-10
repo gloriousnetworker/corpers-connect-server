@@ -36,7 +36,10 @@ export const messagingController = {
 
   async listConversations(req: Request, res: Response, next: NextFunction) {
     try {
-      const data = await messagingService.listConversations(req.user!.id);
+      const archived = req.query.archived === 'true';
+      const data = archived
+        ? await messagingService.listArchivedConversations(req.user!.id)
+        : await messagingService.listConversations(req.user!.id);
       sendSuccess(res, data, 'Conversations retrieved');
     } catch (err) {
       next(err);
@@ -194,11 +197,43 @@ export const messagingController = {
       const conversationId = p(req.params.conversationId);
       const messageId = p(req.params.messageId);
       const deleteFor = (req.query.for === 'all' ? 'all' : 'me') as 'me' | 'all';
-      await messagingService.deleteMessage(req.user!.id, conversationId, messageId, deleteFor);
+      const result = await messagingService.deleteMessage(req.user!.id, conversationId, messageId, deleteFor);
       try {
-        getIO().to(`conversation:${conversationId}`).emit('message:deleted', { messageId, deleteFor, conversationId });
+        // Include lockedFor so each receiver can decide whether to honour the deletion
+        getIO().to(`conversation:${conversationId}`).emit('message:deleted', {
+          messageId,
+          deleteFor,
+          conversationId,
+          lockedFor: result.lockedFor,
+        });
       } catch { /* non-fatal */ }
       sendSuccess(res, null, 'Message deleted');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async lockMessage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await messagingService.lockMessage(
+        req.user!.id,
+        p(req.params.conversationId),
+        p(req.params.messageId),
+      );
+      sendSuccess(res, data ?? null, 'Message locked in');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async unlockMessage(req: Request, res: Response, next: NextFunction) {
+    try {
+      await messagingService.unlockMessage(
+        req.user!.id,
+        p(req.params.conversationId),
+        p(req.params.messageId),
+      );
+      sendSuccess(res, null, 'Message unlocked');
     } catch (err) {
       next(err);
     }
