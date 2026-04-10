@@ -273,21 +273,30 @@ export const emailService = {
   async sendSellerDeactivated(to: string, name: string, reason: string): Promise<void> {
     const safeName = escapeHtml(name);
     const safeReason = escapeHtml(reason);
+    const appealUrl = `${env.CLIENT_URL}?seller-appeal=1`;
     const html = emailShell(`
       <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
-      <p style="color: #555;">Your Mami Market seller profile has been deactivated.</p>
+      <p style="color: #555;">Your Mami Market seller profile has been suspended.</p>
       <div style="background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 8px; padding: 16px; margin: 16px 0;">
         <p style="color: #9A3412; font-size: 14px; margin: 0;"><strong>Reason:</strong> ${safeReason}</p>
       </div>
       <p style="color: #555; font-size: 14px;">
-        All your active listings have been set to inactive. To reinstate your seller profile,
-        please contact the admin team for assistance.
+        All your active listings have been set to inactive. If you believe this was done
+        in error or you have addressed the issue, you can submit a formal appeal directly
+        through the app — our team will review it and respond.
       </p>
-      <p style="color: #888; font-size: 13px;">
-        If you believe this was done in error, reply to this email or reach out through the app.
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${appealUrl}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Submit an Appeal
+        </a>
+      </div>
+      <p style="color: #aaa; font-size: 12px; text-align: center;">
+        The button above will open the Corpers Connect app and take you directly to the appeal form
+        in your seller profile.
       </p>
     `);
-    await send(to, 'Your Mami Market seller profile has been deactivated', html, 'seller-deactivated');
+    await send(to, 'Your Mami Market seller profile has been suspended', html, 'seller-deactivated');
   },
 
   async sendSellerReinstated(to: string, name: string): Promise<void> {
