@@ -8,7 +8,7 @@ import {
   changeEmailInitiateSchema,
   changeEmailVerifySchema,
 } from './users.validation';
-import { avatarUpload, uploadToCloudinary } from '../../shared/middleware/upload.middleware';
+import { avatarUpload, mediaUpload, uploadToCloudinary, uploadMediaToCloudinary } from '../../shared/middleware/upload.middleware';
 import { AppError } from '../../shared/utils/errors';
 import { postsService } from '../posts/posts.service';
 import { storiesService } from '../stories/stories.service';
@@ -57,6 +57,21 @@ export const usersController = {
         const url = await uploadToCloudinary(req.file.buffer, 'corpers_connect/avatars');
         const data = await usersService.updateAvatar(req.user!.id, url);
         sendSuccess(res, data, 'Avatar updated');
+      } catch (uploadErr) {
+        next(uploadErr);
+      }
+    });
+  },
+
+  // Banner upload: images or short videos (uses mediaUpload — 50 MB, image+video)
+  uploadBanner(req: Request, res: Response, next: NextFunction) {
+    mediaUpload(req, res, async (err) => {
+      if (err) return next(err instanceof Error ? err : new AppError(String(err), 400));
+      try {
+        if (!req.file) throw new AppError('No file provided', 400);
+        const { url } = await uploadMediaToCloudinary(req.file.buffer, 'corpers_connect/banners');
+        const data = await usersService.updateBanner(req.user!.id, url);
+        sendSuccess(res, data, 'Banner updated');
       } catch (uploadErr) {
         next(uploadErr);
       }

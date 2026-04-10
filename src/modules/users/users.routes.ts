@@ -29,6 +29,12 @@ router.post('/me/onboard', authenticate, usersController.onboard);
  */
 router.post('/me/avatar', authenticate, usersController.uploadAvatar);
 
+/** POST /api/v1/users/me/banner
+ *  Upload profile banner (image or short video). multipart/form-data, field name: "banner".
+ *  Max 50MB. Supports image/* and video/*. Returns updated profile.
+ */
+router.post('/me/banner', authenticate, usersController.uploadBanner);
+
 /** POST /api/v1/users/me/email/initiate
  *  Step 1 of email change: verify current password and send OTP to the new address.
  *  Body: { newEmail, currentPassword }

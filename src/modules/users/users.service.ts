@@ -110,6 +110,23 @@ export const usersService = {
     return sanitiseOwnProfile(updated as unknown as Record<string, unknown>);
   },
 
+  async updateBanner(userId: string, imageUrl: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { bannerImage: true },
+    });
+    const oldUrl = user?.bannerImage;
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { bannerImage: imageUrl },
+    });
+
+    if (oldUrl) void destroyCloudinaryAsset(oldUrl);
+
+    return sanitiseOwnProfile(updated as unknown as Record<string, unknown>);
+  },
+
   // ── Email Change ─────────────────────────────────────────────────────────────
 
   /**

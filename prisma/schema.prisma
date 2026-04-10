@@ -212,6 +212,7 @@ model User {
   ppa              String?
   batch            String
   profilePicture   String?
+  bannerImage      String?
   bio              String?          @db.VarChar(160)
   corperTag        Boolean          @default(false)
   corperTagLabel   String?
