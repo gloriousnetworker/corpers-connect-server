@@ -36,6 +36,17 @@ export const mediaUpload = multer({
   },
 }).single('media');
 
+// For profile banner — image or short video up to 50 MB, field name: "banner"
+export const bannerUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    const ok = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
+    if (!ok) return cb(new AppError('Only image and video files are allowed', 400));
+    cb(null, true);
+  },
+}).single('banner');
+
 export const uploadToCloudinary = (
   buffer: Buffer,
   folder: string,

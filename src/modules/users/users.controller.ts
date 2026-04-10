@@ -8,7 +8,7 @@ import {
   changeEmailInitiateSchema,
   changeEmailVerifySchema,
 } from './users.validation';
-import { avatarUpload, mediaUpload, uploadToCloudinary, uploadMediaToCloudinary } from '../../shared/middleware/upload.middleware';
+import { avatarUpload, bannerUpload, uploadToCloudinary, uploadMediaToCloudinary } from '../../shared/middleware/upload.middleware';
 import { AppError } from '../../shared/utils/errors';
 import { postsService } from '../posts/posts.service';
 import { storiesService } from '../stories/stories.service';
@@ -63,9 +63,9 @@ export const usersController = {
     });
   },
 
-  // Banner upload: images or short videos (uses mediaUpload — 50 MB, image+video)
+  // Banner upload: images or short videos (uses bannerUpload — 50 MB, image+video, field: "banner")
   uploadBanner(req: Request, res: Response, next: NextFunction) {
-    mediaUpload(req, res, async (err) => {
+    bannerUpload(req, res, async (err) => {
       if (err) return next(err instanceof Error ? err : new AppError(String(err), 400));
       try {
         if (!req.file) throw new AppError('No file provided', 400);
