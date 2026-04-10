@@ -13,9 +13,28 @@ jest.mock('../../config/prisma', () => ({
     report: { count: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     subscription: { count: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     sellerApplication: { count: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    sellerProfile: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
+    sellerAppeal: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    marketplaceListing: { count: jest.fn().mockResolvedValue(0), updateMany: jest.fn() },
+    listingReview: { aggregate: jest.fn().mockResolvedValue({ _avg: { rating: null }, _count: { rating: 0 } }) },
     systemSetting: { findMany: jest.fn(), upsert: jest.fn() },
     auditLog: { create: jest.fn(), findMany: jest.fn() },
   },
+}));
+
+jest.mock('../../shared/services/email.service', () => ({
+  emailService: {
+    sendSellerApproved: jest.fn().mockResolvedValue(undefined),
+    sendSellerRejected: jest.fn().mockResolvedValue(undefined),
+    sendSellerDeactivated: jest.fn().mockResolvedValue(undefined),
+    sendSellerReinstated: jest.fn().mockResolvedValue(undefined),
+    sendAppealAccepted: jest.fn().mockResolvedValue(undefined),
+    sendAppealRejected: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock('../../modules/notifications/notifications.service', () => ({
+  notificationsService: { create: jest.fn().mockResolvedValue({}) },
 }));
 
 jest.mock('../../shared/services/jwt.service', () => ({
@@ -353,5 +372,121 @@ describe('adminService.deactivateAdmin', () => {
 
   it('throws 400 when trying to deactivate yourself', async () => {
     await expect(adminService.deactivateAdmin(ADMIN_ID, ADMIN_ID)).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+// ── listSellers ───────────────────────────────────────────────────────────────
+
+describe('adminService.listSellers', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns paginated seller profiles', async () => {
+    const profiles = [
+      { id: 'sp-1', userId: USER_ID, businessName: 'Test Biz', sellerStatus: 'ACTIVE', user: { id: USER_ID, firstName: 'Test', lastName: 'User', email: 'u@e.com', profilePicture: null, stateCode: 'LA/25/001' } },
+    ];
+    (mockPrisma.sellerProfile.findMany as jest.Mock).mockResolvedValue(profiles);
+    // listingCount and reviewAgg aggregate calls are nested — they don't resolve through mockPrisma directly
+    // so we just verify the primary call shape
+
+    const result = await adminService.listSellers(undefined, undefined, 20);
+    expect(mockPrisma.sellerProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 21, orderBy: { createdAt: 'desc' } }),
+    );
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('filters by DEACTIVATED status', async () => {
+    (mockPrisma.sellerProfile.findMany as jest.Mock).mockResolvedValue([]);
+    await adminService.listSellers(undefined, 'DEACTIVATED', 20);
+    expect(mockPrisma.sellerProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sellerStatus: 'DEACTIVATED' } }),
+    );
+  });
+});
+
+// ── getSellerAppeals ──────────────────────────────────────────────────────────
+
+describe('adminService.getSellerAppeals', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns appeals for a seller', async () => {
+    const appeals = [
+      { id: 'appeal-1', sellerId: USER_ID, message: 'Please reinstate', status: 'PENDING', createdAt: new Date() },
+    ];
+    (mockPrisma.sellerAppeal.findMany as jest.Mock).mockResolvedValue(appeals);
+
+    const result = await adminService.getSellerAppeals(USER_ID);
+    expect(mockPrisma.sellerAppeal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sellerId: USER_ID } }),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('PENDING');
+  });
+
+  it('returns empty array when no appeals exist', async () => {
+    (mockPrisma.sellerAppeal.findMany as jest.Mock).mockResolvedValue([]);
+    const result = await adminService.getSellerAppeals(USER_ID);
+    expect(result).toHaveLength(0);
+  });
+});
+
+// ── respondToAppeal ───────────────────────────────────────────────────────────
+
+describe('adminService.respondToAppeal', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const APPEAL_ID = 'appeal-1';
+  const mockPendingAppeal = {
+    id: APPEAL_ID,
+    sellerId: USER_ID,
+    message: 'Please reinstate me',
+    status: 'PENDING',
+    seller: { email: 'seller@example.com', firstName: 'Test' },
+  };
+
+  it('accepts appeal and reinstates seller', async () => {
+    (mockPrisma.sellerAppeal.findUnique as jest.Mock).mockResolvedValue(mockPendingAppeal);
+    (mockPrisma.sellerAppeal.update as jest.Mock).mockResolvedValue({});
+    (mockPrisma.sellerProfile.update as jest.Mock).mockResolvedValue({});
+    (mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({});
+
+    await adminService.respondToAppeal(APPEAL_ID, ADMIN_ID, { action: 'ACCEPT', adminResponse: 'We have reviewed and reinstated you.' });
+
+    expect(mockPrisma.sellerAppeal.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: APPEAL_ID }, data: expect.objectContaining({ status: 'ACCEPTED' }) }),
+    );
+    expect(mockPrisma.sellerProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER_ID }, data: expect.objectContaining({ sellerStatus: 'ACTIVE' }) }),
+    );
+  });
+
+  it('rejects appeal without reinstating seller', async () => {
+    (mockPrisma.sellerAppeal.findUnique as jest.Mock).mockResolvedValue(mockPendingAppeal);
+    (mockPrisma.sellerAppeal.update as jest.Mock).mockResolvedValue({});
+    (mockPrisma.sellerProfile.update as jest.Mock).mockResolvedValue({});
+    (mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({});
+
+    await adminService.respondToAppeal(APPEAL_ID, ADMIN_ID, { action: 'REJECT', adminResponse: 'Violations remain unresolved.' });
+
+    expect(mockPrisma.sellerAppeal.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'REJECTED' }) }),
+    );
+    // seller profile should NOT be updated on rejection
+    expect(mockPrisma.sellerProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('throws 404 for non-existent appeal', async () => {
+    (mockPrisma.sellerAppeal.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(
+      adminService.respondToAppeal('bad-id', ADMIN_ID, { action: 'ACCEPT', adminResponse: 'ok' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 400 for already-responded appeal', async () => {
+    (mockPrisma.sellerAppeal.findUnique as jest.Mock).mockResolvedValue({ ...mockPendingAppeal, status: 'ACCEPTED' });
+    await expect(
+      adminService.respondToAppeal(APPEAL_ID, ADMIN_ID, { action: 'REJECT', adminResponse: 'nope' }),
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 });

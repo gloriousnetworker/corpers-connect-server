@@ -344,4 +344,65 @@ export const emailService = {
     `);
     await send(to, `New message about your listing: ${listingTitle}`, html, 'marketplace-message');
   },
+
+  async sendAppealReceived(to: string, sellerName: string, message: string): Promise<void> {
+    const safeName = escapeHtml(sellerName);
+    const safeMsg = escapeHtml(message);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello Admin,</p>
+      <p style="color: #555;">A seller has submitted an appeal to reinstate their Mami Market account.</p>
+      <div style="background: #f9f9f9; border-left: 4px solid #e67e22; border-radius: 6px;
+                  padding: 16px 20px; margin: 20px 0;">
+        <p style="color: #333; font-size: 14px; margin: 0 0 6px; font-weight: bold;">From: ${safeName}</p>
+        <p style="color: #555; font-size: 14px; margin: 0;">${safeMsg}</p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL?.replace('/user', '/admin') ?? '#'}/marketplace" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Review Appeal
+        </a>
+      </div>
+    `);
+    await send(to, `Seller Appeal: ${sellerName} requests reinstatement`, html, 'appeal-received');
+  },
+
+  async sendAppealAccepted(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Great news! Your appeal has been reviewed and your Mami Market seller account has been reinstated.</p>
+      <div style="background: #f0faf4; border: 2px solid #008751; border-radius: 8px;
+                  padding: 20px; text-align: center; margin: 20px 0;">
+        <p style="color: #008751; font-size: 18px; font-weight: bold; margin: 0;">
+          Appeal Accepted — Welcome Back!
+        </p>
+        <p style="color: #555; font-size: 14px; margin: 8px 0 0;">
+          Your seller account is now active. Re-activate your listings to start selling.
+        </p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Open Mami Market
+        </a>
+      </div>
+    `);
+    await send(to, 'Your Mami Market appeal has been accepted!', html, 'appeal-accepted');
+  },
+
+  async sendAppealRejected(to: string, name: string, adminResponse: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const safeResponse = escapeHtml(adminResponse);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">We have reviewed your appeal regarding your Mami Market seller account.</p>
+      <div style="background: #fff5f5; border-left: 4px solid #e74c3c; border-radius: 6px;
+                  padding: 16px 20px; margin: 20px 0;">
+        <p style="color: #333; font-size: 14px; margin: 0 0 6px; font-weight: bold;">Admin Response:</p>
+        <p style="color: #555; font-size: 14px; margin: 0;">${safeResponse}</p>
+      </div>
+      <p style="color: #555; font-size: 14px;">If you believe this decision is incorrect, please contact support.</p>
+    `);
+    await send(to, 'Update on your Mami Market appeal', html, 'appeal-rejected');
+  },
 };

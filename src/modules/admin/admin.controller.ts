@@ -15,6 +15,8 @@ import {
   upsertSettingSchema,
   createAdminSchema,
   deactivateSellerSchema,
+  respondToAppealSchema,
+  listSellersSchema,
 } from './admin.validation';
 import { ValidationError } from '../../shared/utils/errors';
 
@@ -293,6 +295,38 @@ export const adminController = {
     try {
       await adminService.reinstateSeller(p(req.params.userId), req.user!.id, ip(req));
       res.json({ status: 'success', data: null, message: 'Seller reinstated' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async listSellers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = listSellersSchema.safeParse(req.query);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+      const { cursor, status, limit } = parsed.data;
+      const data = await adminService.listSellers(cursor, status, limit);
+      res.json({ status: 'success', data });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getSellerAppeals(req: Request, res: Response, next: NextFunction) {
+    try {
+      const appeals = await adminService.getSellerAppeals(p(req.params.userId));
+      res.json({ status: 'success', data: appeals });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async respondToAppeal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = respondToAppealSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+      await adminService.respondToAppeal(p(req.params.appealId), req.user!.id, parsed.data, ip(req));
+      res.json({ status: 'success', data: null, message: 'Appeal response submitted' });
     } catch (err) {
       next(err);
     }

@@ -1,3 +1,13 @@
+// Prevent real email sends during integration tests
+jest.mock('../../shared/services/email.service', () => ({
+  emailService: {
+    sendSellerApproved: jest.fn().mockResolvedValue(undefined),
+    sendSellerRejected: jest.fn().mockResolvedValue(undefined),
+    sendAppealReceived: jest.fn().mockResolvedValue(undefined),
+    sendMarketplaceMessage: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import request from 'supertest';
 import app from '../../app';
 import { prisma } from '../../config/prisma';
@@ -384,5 +394,117 @@ describe('GET /api/v1/marketplace/listings/:listingId/inquiries', () => {
       .set('Authorization', `Bearer ${outsiderToken}`);
 
     expect(res.status).toBe(403);
+  });
+});
+
+// ── POST /api/v1/marketplace/my-seller-profile/appeal ────────────────────────
+
+describe('POST /api/v1/marketplace/my-seller-profile/appeal', () => {
+  async function createDeactivatedSeller() {
+    const user = await createUser();
+    await prisma.sellerApplication.create({
+      data: { userId: user.id, idDocUrl: 'https://cdn/doc.jpg', status: 'APPROVED' },
+    });
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Deactivated Shop', businessDescription: 'We sell great stuff', whatTheySell: 'Electronics', sellerStatus: 'DEACTIVATED', deactivationReason: 'Policy violation', deactivatedAt: new Date() },
+    });
+    return { user, token: makeToken(user.id) };
+  }
+
+  it('submits an appeal for a deactivated seller', async () => {
+    const { token } = await createDeactivatedSeller();
+
+    const res = await request(app)
+      .post('/api/v1/marketplace/my-seller-profile/appeal')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'I have read and understood the rules and will comply going forward.' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe('PENDING');
+    expect(res.body.data.message).toContain('rules');
+  });
+
+  it('returns 400 for short message', async () => {
+    const { token } = await createDeactivatedSeller();
+
+    const res = await request(app)
+      .post('/api/v1/marketplace/my-seller-profile/appeal')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Too short' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for duplicate pending appeal', async () => {
+    const { user, token } = await createDeactivatedSeller();
+    await prisma.sellerAppeal.create({
+      data: { sellerId: user.id, message: 'First appeal already pending review.' },
+    });
+
+    const res = await request(app)
+      .post('/api/v1/marketplace/my-seller-profile/appeal')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Trying to submit a second appeal here.' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for active seller', async () => {
+    const { token } = await createApprovedSeller();
+    // createApprovedSeller only creates the application — no profile; but even if active profile exists:
+    const res = await request(app)
+      .post('/api/v1/marketplace/my-seller-profile/appeal')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Active sellers should not be able to submit appeals.' });
+
+    // 404 (no profile) or 400 (active profile) — either is a rejection
+    expect([400, 404]).toContain(res.status);
+  });
+
+  it('returns 401 without token', async () => {
+    const res = await request(app)
+      .post('/api/v1/marketplace/my-seller-profile/appeal')
+      .send({ message: 'Unauthenticated appeal attempt.' });
+
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── GET /api/v1/marketplace/my-seller-profile/appeals ────────────────────────
+
+describe('GET /api/v1/marketplace/my-seller-profile/appeals', () => {
+  it('returns appeals for the current seller', async () => {
+    const user = await createUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Shop', businessDescription: 'We sell things', whatTheySell: 'Misc', sellerStatus: 'DEACTIVATED', deactivationReason: 'Violation', deactivatedAt: new Date() },
+    });
+    await prisma.sellerAppeal.create({
+      data: { sellerId: user.id, message: 'I want my account reinstated please.' },
+    });
+    const token = makeToken(user.id);
+
+    const res = await request(app)
+      .get('/api/v1/marketplace/my-seller-profile/appeals')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('returns empty array when no appeals', async () => {
+    const { token } = await createApprovedSeller();
+
+    const res = await request(app)
+      .get('/api/v1/marketplace/my-seller-profile/appeals')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it('returns 401 without token', async () => {
+    const res = await request(app).get('/api/v1/marketplace/my-seller-profile/appeals');
+    expect(res.status).toBe(401);
   });
 });

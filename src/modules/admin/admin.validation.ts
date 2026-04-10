@@ -82,6 +82,17 @@ export const deactivateSellerSchema = z.object({
   reason: z.string().min(1).max(500),
 });
 
+export const respondToAppealSchema = z.object({
+  action: z.enum(['ACCEPT', 'REJECT']),
+  adminResponse: z.string().min(1).max(1000),
+});
+
+export const listSellersSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  status: z.string().optional(),
+});
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AdminLoginDto = z.infer<typeof adminLoginSchema>;
@@ -95,3 +106,5 @@ export type ReviewSellerApplicationDto = z.infer<typeof reviewSellerApplicationS
 export type UpsertSettingDto = z.infer<typeof upsertSettingSchema>;
 export type CreateAdminDto = z.infer<typeof createAdminSchema>;
 export type DeactivateSellerDto = z.infer<typeof deactivateSellerSchema>;
+export type RespondToAppealDto = z.infer<typeof respondToAppealSchema>;
+export type ListSellersDto = z.infer<typeof listSellersSchema>;

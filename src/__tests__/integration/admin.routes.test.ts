@@ -3,6 +3,22 @@
  * AdminUser rows are created directly via Prisma; JWTs are signed with the real secret.
  */
 
+// Prevent real email sends during integration tests
+jest.mock('../../shared/services/email.service', () => ({
+  emailService: {
+    sendSellerApproved: jest.fn().mockResolvedValue(undefined),
+    sendSellerRejected: jest.fn().mockResolvedValue(undefined),
+    sendSellerDeactivated: jest.fn().mockResolvedValue(undefined),
+    sendSellerReinstated: jest.fn().mockResolvedValue(undefined),
+    sendAppealReceived: jest.fn().mockResolvedValue(undefined),
+    sendAppealAccepted: jest.fn().mockResolvedValue(undefined),
+    sendAppealRejected: jest.fn().mockResolvedValue(undefined),
+    sendSubscriptionConfirmation: jest.fn().mockResolvedValue(undefined),
+    sendSubscriptionCancelled: jest.fn().mockResolvedValue(undefined),
+    sendWelcome: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import request from 'supertest';
 import app from '../../app';
 import { prisma } from '../../config/prisma';
@@ -883,5 +899,247 @@ describe('PATCH /api/v1/admin/admins/:adminId/deactivate', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(403);
+  });
+});
+
+// ── GET /api/v1/admin/sellers ─────────────────────────────────────────────────
+
+describe('GET /api/v1/admin/sellers', () => {
+  it('returns paginated seller list', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Test Biz', businessDescription: 'We sell great things', whatTheySell: 'Electronics' },
+    });
+
+    const res = await request(app)
+      .get('/api/v1/admin/sellers')
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data.items)).toBe(true);
+    expect(typeof res.body.data.hasMore).toBe('boolean');
+  });
+
+  it('filters by status=DEACTIVATED', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Deactivated Biz', businessDescription: 'We sell things', whatTheySell: 'Clothes', sellerStatus: 'DEACTIVATED', deactivationReason: 'Violation', deactivatedAt: new Date() },
+    });
+
+    const res = await request(app)
+      .get('/api/v1/admin/sellers?status=DEACTIVATED')
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`);
+
+    expect(res.status).toBe(200);
+    const items = res.body.data.items as any[];
+    expect(items.every((s: any) => s.sellerStatus === 'DEACTIVATED')).toBe(true);
+  });
+
+  it('returns 401 without token', async () => {
+    const res = await request(app).get('/api/v1/admin/sellers');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── PATCH /api/v1/admin/sellers/:userId/deactivate ────────────────────────────
+
+describe('PATCH /api/v1/admin/sellers/:userId/deactivate', () => {
+  it('deactivates an active seller', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Active Biz', businessDescription: 'We sell things', whatTheySell: 'Food' },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/sellers/${user.id}/deactivate`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`)
+      .send({ reason: 'Violating marketplace rules' });
+
+    expect(res.status).toBe(200);
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: user.id } });
+    expect(profile?.sellerStatus).toBe('DEACTIVATED');
+    expect(profile?.deactivationReason).toBe('Violating marketplace rules');
+  });
+
+  it('returns 400 for already deactivated seller', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Already Off', businessDescription: 'We sell things', whatTheySell: 'Other', sellerStatus: 'DEACTIVATED', deactivationReason: 'Old reason', deactivatedAt: new Date() },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/sellers/${user.id}/deactivate`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`)
+      .send({ reason: 'New reason' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 422 when reason is missing', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/sellers/${user.id}/deactivate`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`)
+      .send({});
+
+    expect(res.status).toBe(422);
+  });
+});
+
+// ── PATCH /api/v1/admin/sellers/:userId/reinstate ─────────────────────────────
+
+describe('PATCH /api/v1/admin/sellers/:userId/reinstate', () => {
+  it('reinstates a deactivated seller', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Comeback Biz', businessDescription: 'We sell things', whatTheySell: 'Services', sellerStatus: 'DEACTIVATED', deactivationReason: 'Rule violation', deactivatedAt: new Date() },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/sellers/${user.id}/reinstate`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`);
+
+    expect(res.status).toBe(200);
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: user.id } });
+    expect(profile?.sellerStatus).toBe('ACTIVE');
+    expect(profile?.deactivationReason).toBeNull();
+  });
+
+  it('returns 400 when seller is already active', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Already Active', businessDescription: 'We sell things', whatTheySell: 'Tech' },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/sellers/${user.id}/reinstate`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`);
+
+    expect(res.status).toBe(400);
+  });
+});
+
+// ── GET /api/v1/admin/sellers/:userId/appeals ─────────────────────────────────
+
+describe('GET /api/v1/admin/sellers/:userId/appeals', () => {
+  it('returns appeals list for a seller', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Appeal Biz', businessDescription: 'We sell things', whatTheySell: 'Fashion', sellerStatus: 'DEACTIVATED', deactivationReason: 'Violation', deactivatedAt: new Date() },
+    });
+    await prisma.sellerAppeal.create({
+      data: { sellerId: user.id, message: 'I promise to follow the rules from now on.' },
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/admin/sellers/${user.id}/appeals`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data[0].status).toBe('PENDING');
+  });
+
+  it('returns empty array when no appeals', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+
+    const res = await request(app)
+      .get(`/api/v1/admin/sellers/${user.id}/appeals`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
+  });
+});
+
+// ── PATCH /api/v1/admin/appeals/:appealId/respond ─────────────────────────────
+
+describe('PATCH /api/v1/admin/appeals/:appealId/respond', () => {
+  async function setupAppeal() {
+    const user = await createRegularUser();
+    await prisma.sellerProfile.create({
+      data: { userId: user.id, businessName: 'Respond Biz', businessDescription: 'We sell things', whatTheySell: 'Beauty', sellerStatus: 'DEACTIVATED', deactivationReason: 'Violation', deactivatedAt: new Date() },
+    });
+    const appeal = await prisma.sellerAppeal.create({
+      data: { sellerId: user.id, message: 'Please give me another chance, I will comply with all rules.' },
+    });
+    return { user, appeal };
+  }
+
+  it('accepts appeal and reinstates seller', async () => {
+    const admin = await createAdminUser();
+    const { user, appeal } = await setupAppeal();
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/appeals/${appeal.id}/respond`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`)
+      .send({ action: 'ACCEPT', adminResponse: 'We have reviewed your appeal and decided to reinstate you.' });
+
+    expect(res.status).toBe(200);
+    const updatedAppeal = await prisma.sellerAppeal.findUnique({ where: { id: appeal.id } });
+    expect(updatedAppeal?.status).toBe('ACCEPTED');
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: user.id } });
+    expect(profile?.sellerStatus).toBe('ACTIVE');
+  });
+
+  it('rejects appeal — seller stays deactivated', async () => {
+    const admin = await createAdminUser();
+    const { user, appeal } = await setupAppeal();
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/appeals/${appeal.id}/respond`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`)
+      .send({ action: 'REJECT', adminResponse: 'The violations remain unresolved.' });
+
+    expect(res.status).toBe(200);
+    const updatedAppeal = await prisma.sellerAppeal.findUnique({ where: { id: appeal.id } });
+    expect(updatedAppeal?.status).toBe('REJECTED');
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: user.id } });
+    expect(profile?.sellerStatus).toBe('DEACTIVATED');
+  });
+
+  it('returns 400 for already-responded appeal', async () => {
+    const admin = await createAdminUser();
+    const user = await createRegularUser();
+    const appeal = await prisma.sellerAppeal.create({
+      data: { sellerId: user.id, message: 'Already answered appeal message here.', status: 'ACCEPTED', adminResponse: 'Done.', respondedAt: new Date() },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/appeals/${appeal.id}/respond`)
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`)
+      .send({ action: 'REJECT', adminResponse: 'Changed my mind.' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 422 for missing adminResponse', async () => {
+    const admin = await createAdminUser();
+
+    const res = await request(app)
+      .patch('/api/v1/admin/appeals/some-id/respond')
+      .set('Authorization', `Bearer ${makeAdminToken(admin.id)}`)
+      .send({ action: 'ACCEPT' });
+
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 401 without token', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/appeals/some-id/respond')
+      .send({ action: 'ACCEPT', adminResponse: 'ok' });
+
+    expect(res.status).toBe(401);
   });
 });

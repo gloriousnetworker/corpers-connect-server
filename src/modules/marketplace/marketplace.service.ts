@@ -159,6 +159,40 @@ export const marketplaceService = {
     return this.getSellerProfile(userId);
   },
 
+  async submitAppeal(userId: string, message: string) {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId } });
+    if (!profile) throw new NotFoundError('Seller profile not found');
+    if (profile.sellerStatus !== 'DEACTIVATED') throw new BadRequestError('Your account is not deactivated');
+
+    // Limit to one pending appeal at a time
+    const existing = await prisma.sellerAppeal.findFirst({
+      where: { sellerId: userId, status: 'PENDING' },
+    });
+    if (existing) throw new BadRequestError('You already have a pending appeal. Please wait for a response.');
+
+    const appeal = await prisma.sellerAppeal.create({
+      data: { sellerId: userId, message },
+    });
+
+    // Notify admins via email
+    const { emailService } = await import('../../shared/services/email.service');
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { firstName: true, lastName: true } });
+    const admins = await prisma.adminUser.findMany({ where: { isActive: true }, select: { email: true } });
+    const sellerName = user ? `${user.firstName} ${user.lastName}` : 'A seller';
+    for (const admin of admins) {
+      void emailService.sendAppealReceived(admin.email, sellerName, message);
+    }
+
+    return appeal;
+  },
+
+  async getMyAppeals(userId: string) {
+    return prisma.sellerAppeal.findMany({
+      where: { sellerId: userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  },
+
   async getSellerListings(sellerId: string, cursor?: string, limit = DEFAULT_LIMIT) {
     const rows = await prisma.marketplaceListing.findMany({
       where: {

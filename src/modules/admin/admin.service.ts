@@ -760,6 +760,113 @@ export const adminService = {
     });
   },
 
+  // ── Sellers List ─────────────────────────────────────────────────────────────
+
+  async listSellers(cursor?: string, status?: string, limit = 20) {
+    const where: Record<string, unknown> = {};
+    if (status === 'ACTIVE') where.sellerStatus = 'ACTIVE';
+    else if (status === 'DEACTIVATED') where.sellerStatus = 'DEACTIVATED';
+
+    const items = await prisma.sellerProfile.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true, profilePicture: true, stateCode: true } },
+      },
+    });
+
+    const hasMore = items.length > limit;
+    const slice = hasMore ? items.slice(0, limit) : items;
+
+    // Fetch listing counts and rating separately
+    const enriched = await Promise.all(
+      slice.map(async (p) => {
+        const [listingCount, reviewAgg] = await Promise.all([
+          prisma.marketplaceListing.count({ where: { sellerId: p.userId } }),
+          prisma.listingReview.aggregate({
+            where: { listing: { sellerId: p.userId } },
+            _avg: { rating: true },
+            _count: { rating: true },
+          }),
+        ]);
+        return {
+          ...p,
+          listingCount,
+          averageRating: reviewAgg._avg.rating ?? null,
+          reviewCount: reviewAgg._count.rating,
+        };
+      }),
+    );
+
+    return { items: enriched, hasMore };
+  },
+
+  // ── Seller Appeals ────────────────────────────────────────────────────────────
+
+  async getSellerAppeals(userId: string) {
+    return prisma.sellerAppeal.findMany({
+      where: { sellerId: userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        seller: { select: { id: true, firstName: true, lastName: true, email: true } },
+        admin: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+  },
+
+  async respondToAppeal(
+    appealId: string,
+    adminId: string,
+    dto: { action: 'ACCEPT' | 'REJECT'; adminResponse: string },
+    ipAddress?: string,
+  ) {
+    const appeal = await prisma.sellerAppeal.findUnique({
+      where: { id: appealId },
+      include: { seller: { select: { email: true, firstName: true } } },
+    });
+    if (!appeal) throw new AppError('Appeal not found', 404);
+    if (appeal.status !== 'PENDING') throw new AppError('Appeal already responded to', 400);
+
+    await prisma.sellerAppeal.update({
+      where: { id: appealId },
+      data: {
+        status: dto.action === 'ACCEPT' ? 'ACCEPTED' : 'REJECTED',
+        adminId,
+        adminResponse: dto.adminResponse,
+        respondedAt: new Date(),
+      },
+    });
+
+    if (dto.action === 'ACCEPT') {
+      // Reinstate seller
+      await prisma.sellerProfile.update({
+        where: { userId: appeal.sellerId },
+        data: { sellerStatus: 'ACTIVE', deactivationReason: null, deactivatedAt: null },
+      });
+      void emailService.sendAppealAccepted(appeal.seller.email, appeal.seller.firstName);
+      void notificationsService.create({
+        recipientId: appeal.sellerId,
+        type: 'SELLER_APPROVED' as never,
+        entityType: 'SellerProfile',
+        entityId: appeal.sellerId,
+        content: 'Your appeal was accepted! Your Mami Market seller account has been reinstated.',
+      });
+      await audit(adminId, 'SELLER_REINSTATED_VIA_APPEAL', { entityType: 'SellerProfile', entityId: appeal.sellerId, ipAddress });
+    } else {
+      void emailService.sendAppealRejected(appeal.seller.email, appeal.seller.firstName, dto.adminResponse);
+      void notificationsService.create({
+        recipientId: appeal.sellerId,
+        type: 'SELLER_DEACTIVATED' as never,
+        entityType: 'SellerProfile',
+        entityId: appeal.sellerId,
+        content: `Your appeal was not accepted. Admin response: ${dto.adminResponse}`,
+      });
+      await audit(adminId, 'SELLER_APPEAL_REJECTED', { entityType: 'SellerProfile', entityId: appeal.sellerId, ipAddress });
+    }
+  },
+
   // ── System Settings ───────────────────────────────────────────────────────────
 
   async getSettings() {

@@ -22,6 +22,8 @@ router.get('/my-application', authenticate, marketplaceController.getMyApplicati
  *  Get own seller profile with aggregated stats.
  */
 router.get('/my-seller-profile', authenticate, marketplaceController.getMySellerProfile);
+router.post('/my-seller-profile/appeal', authenticate, marketplaceController.submitAppeal);
+router.get('/my-seller-profile/appeals', authenticate, marketplaceController.getMyAppeals);
 
 // ── My Listings ───────────────────────────────────────────────────────────────
 

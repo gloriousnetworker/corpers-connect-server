@@ -317,4 +317,27 @@ export const marketplaceController = {
       next(err);
     }
   },
+
+  async submitAppeal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { message } = req.body;
+      if (!message || typeof message !== 'string' || message.trim().length < 10) {
+        res.status(400).json({ status: 'error', message: 'Appeal message must be at least 10 characters' });
+        return;
+      }
+      const appeal = await marketplaceService.submitAppeal(req.user!.id, message.trim());
+      res.status(201).json({ status: 'success', data: appeal, message: 'Appeal submitted successfully' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getMyAppeals(req: Request, res: Response, next: NextFunction) {
+    try {
+      const appeals = await marketplaceService.getMyAppeals(req.user!.id);
+      res.json({ status: 'success', data: appeals });
+    } catch (err) {
+      next(err);
+    }
+  },
 };

@@ -44,8 +44,11 @@ router.patch('/seller-applications/:appId/approve', adminController.approveSelle
 router.patch('/seller-applications/:appId/reject', adminController.rejectSellerApplication);
 
 // ── Seller Management ────────────────────────────────────────────────────────
+router.get('/sellers', adminController.listSellers);
 router.patch('/sellers/:userId/deactivate', adminController.deactivateSeller);
 router.patch('/sellers/:userId/reinstate', adminController.reinstateSeller);
+router.get('/sellers/:userId/appeals', adminController.getSellerAppeals);
+router.patch('/appeals/:appealId/respond', adminController.respondToAppeal);
 
 // ── System Settings ───────────────────────────────────────────────────────────
 router.get('/settings', adminController.getSettings);

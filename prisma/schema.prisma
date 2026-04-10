@@ -152,6 +152,12 @@ enum SellerStatus {
   DEACTIVATED
 }
 
+enum AppealStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 enum ApplicationStatus {
   PENDING
   REVIEWED
@@ -189,6 +195,8 @@ enum AuditAction {
   SELLER_REJECTED
   SELLER_DEACTIVATED
   SELLER_REINSTATED
+  SELLER_REINSTATED_VIA_APPEAL
+  SELLER_APPEAL_REJECTED
   BROADCAST_SENT
   SUBSCRIPTION_GRANTED
   SUBSCRIPTION_REVOKED
@@ -258,6 +266,7 @@ model User {
   callsAsReceiver       CallLog[]              @relation("receiver")
   sellerApplication     SellerApplication?
   sellerProfile         SellerProfile?
+  sellerAppeals         SellerAppeal[]         @relation("SellerAppeals")
   listingComments       ListingComment[]       @relation("ListingCommentAuthor")
   marketplaceBuyerConvs  MarketplaceConversation[] @relation("MarketplaceBuyer")
   marketplaceSellerConvs MarketplaceConversation[] @relation("MarketplaceSeller")
@@ -321,8 +330,9 @@ model AdminUser {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  auditLogs    AuditLog[]
-  joinRequests JoinRequest[]
+  auditLogs      AuditLog[]
+  joinRequests   JoinRequest[]
+  sellerAppeals  SellerAppeal[]
 }
 
 // ─── POSTS & FEED ─────────────────────────────────────────────────────────────
@@ -662,6 +672,23 @@ model SellerProfile {
   updatedAt           DateTime     @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SellerAppeal {
+  id            String       @id @default(cuid())
+  sellerId      String
+  message       String       @db.Text
+  status        AppealStatus @default(PENDING)
+  adminId       String?
+  adminResponse String?      @db.Text
+  respondedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  seller User       @relation("SellerAppeals", fields: [sellerId], references: [id], onDelete: Cascade)
+  admin  AdminUser? @relation(fields: [adminId], references: [id])
+
+  @@index([sellerId])
 }
 
 model ListingComment {
