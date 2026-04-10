@@ -1,31 +1,47 @@
 import { z } from 'zod';
 
 export const applySellerSchema = z.object({
-  businessName: z.string().min(2).max(100),
-  businessDescription: z.string().min(10).max(1000),
-  whatTheySell: z.string().min(3).max(200),
+  businessName: z.string()
+    .min(2, 'Business name must be at least 2 characters')
+    .max(100, 'Business name cannot exceed 100 characters'),
+  businessDescription: z.string()
+    .min(10, 'Business description is too short — please write at least 10 characters')
+    .max(1000, 'Business description cannot exceed 1000 characters'),
+  whatTheySell: z.string()
+    .min(3, 'Please describe what you sell (at least 3 characters)')
+    .max(200, 'This field cannot exceed 200 characters'),
 });
 
 export const createListingSchema = z.object({
-  title: z.string().min(3).max(120),
-  description: z.string().min(10).max(2000),
+  title: z.string()
+    .min(3, 'Title is too short — please enter at least 3 characters')
+    .max(120, 'Title cannot exceed 120 characters'),
+  description: z.string()
+    .min(10, 'Description is too short — please write at least 10 characters')
+    .max(2000, 'Description cannot exceed 2000 characters'),
   category: z
     .enum(['HOUSING', 'UNIFORM', 'ELECTRONICS', 'FOOD', 'SERVICES', 'OPPORTUNITIES', 'OTHERS'])
     .default('OTHERS'),
-  price: z.coerce.number().positive().optional(),
+  price: z.coerce.number().positive('Price must be a positive number').optional(),
   listingType: z.enum(['FOR_SALE', 'FOR_RENT', 'SERVICE', 'FREE']).default('FOR_SALE'),
-  location: z.string().max(200).optional(),
+  location: z.string().max(200, 'Location cannot exceed 200 characters').optional(),
 });
 
 export const updateListingSchema = z.object({
-  title: z.string().min(3).max(120).optional(),
-  description: z.string().min(10).max(2000).optional(),
+  title: z.string()
+    .min(3, 'Title is too short — please enter at least 3 characters')
+    .max(120, 'Title cannot exceed 120 characters')
+    .optional(),
+  description: z.string()
+    .min(10, 'Description is too short — please write at least 10 characters')
+    .max(2000, 'Description cannot exceed 2000 characters')
+    .optional(),
   category: z
     .enum(['HOUSING', 'UNIFORM', 'ELECTRONICS', 'FOOD', 'SERVICES', 'OPPORTUNITIES', 'OTHERS'])
     .optional(),
-  price: z.coerce.number().positive().optional(),
+  price: z.coerce.number().positive('Price must be a positive number').optional(),
   listingType: z.enum(['FOR_SALE', 'FOR_RENT', 'SERVICE', 'FREE']).optional(),
-  location: z.string().max(200).optional(),
+  location: z.string().max(200, 'Location cannot exceed 200 characters').optional(),
   status: z.enum(['ACTIVE', 'SOLD', 'INACTIVE']).optional(),
 });
 
