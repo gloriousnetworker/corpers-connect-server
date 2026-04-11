@@ -77,6 +77,24 @@ export const idDocUpload = multer({
   fileFilter: imageFilter,
 }).single('idDoc');
 
+// For appeal attachments — images, PDF, DOC, DOCX up to 10 MB
+export const appealAttachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    const allowed = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new AppError('Only images, PDF, DOC, and DOCX files are allowed', 400));
+    }
+    cb(null, true);
+  },
+}).single('attachment');
+
 // For CV/resume uploads — PDF, DOC, DOCX, max 5 MB
 export const cvUpload = multer({
   storage: multer.memoryStorage(),

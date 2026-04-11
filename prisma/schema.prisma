@@ -708,12 +708,14 @@ model SellerAppeal {
 }
 
 model AppealMessage {
-  id         String    @id @default(cuid())
-  appealId   String
-  content    String    @db.Text
-  senderType String    // "SELLER" | "ADMIN"
-  adminId    String?   // set when senderType == "ADMIN"
-  createdAt  DateTime  @default(now())
+  id             String    @id @default(cuid())
+  appealId       String
+  content        String    @db.Text
+  senderType     String    // "SELLER" | "ADMIN"
+  adminId        String?   // set when senderType == "ADMIN"
+  attachmentUrl  String?   // optional file upload URL (Cloudinary)
+  attachmentName String?   // original filename for display
+  createdAt      DateTime  @default(now())
 
   appeal SellerAppeal @relation(fields: [appealId], references: [id], onDelete: Cascade)
   admin  AdminUser?   @relation(fields: [adminId], references: [id])

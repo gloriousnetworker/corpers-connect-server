@@ -16,6 +16,8 @@ import {
   idDocUpload,
   listingImagesUpload,
   uploadToCloudinary,
+  uploadDocumentToCloudinary,
+  appealAttachmentUpload,
 } from '../../shared/middleware/upload.middleware';
 import { AppError, ValidationError } from '../../shared/utils/errors';
 
@@ -352,16 +354,38 @@ export const marketplaceController = {
   },
 
   async replyToAppeal(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { content } = req.body as { content?: string };
-      if (!content || typeof content !== 'string' || content.trim().length < 1) {
-        res.status(400).json({ status: 'error', message: 'Reply cannot be empty' });
-        return;
+    // Run multer first to parse multipart/form-data (file is optional)
+    appealAttachmentUpload(req, res, async (multerErr) => {
+      if (multerErr) return next(multerErr);
+      try {
+        const { content } = req.body as { content?: string };
+        if (!content || typeof content !== 'string' || content.trim().length < 1) {
+          res.status(400).json({ status: 'error', message: 'Reply cannot be empty' });
+          return;
+        }
+
+        let attachmentUrl: string | undefined;
+        let attachmentName: string | undefined;
+
+        if (req.file) {
+          const isImage = req.file.mimetype.startsWith('image/');
+          attachmentUrl = isImage
+            ? await uploadToCloudinary(req.file.buffer, 'corpers_connect/appeal_attachments', { quality: 'auto', format: 'webp' })
+            : await uploadDocumentToCloudinary(req.file.buffer, 'corpers_connect/appeal_attachments');
+          attachmentName = req.file.originalname;
+        }
+
+        const data = await adminService.sellerReplyToAppeal(
+          p(req.params.appealId),
+          req.user!.id,
+          content.trim(),
+          attachmentUrl,
+          attachmentName,
+        );
+        res.status(201).json({ status: 'success', data });
+      } catch (err) {
+        next(err);
       }
-      const data = await adminService.sellerReplyToAppeal(p(req.params.appealId), req.user!.id, content.trim());
-      res.status(201).json({ status: 'success', data });
-    } catch (err) {
-      next(err);
-    }
+    });
   },
 };

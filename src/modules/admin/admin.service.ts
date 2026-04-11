@@ -1061,7 +1061,13 @@ export const adminService = {
 
   // ── Seller Reply to Admin (appeal thread) ─────────────────────────────────────
 
-  async sellerReplyToAppeal(appealId: string, sellerId: string, content: string) {
+  async sellerReplyToAppeal(
+    appealId: string,
+    sellerId: string,
+    content: string,
+    attachmentUrl?: string,
+    attachmentName?: string,
+  ) {
     const appeal = await prisma.sellerAppeal.findUnique({
       where: { id: appealId },
       include: { seller: { select: { id: true, firstName: true, lastName: true } } },
@@ -1071,7 +1077,13 @@ export const adminService = {
     if (appeal.status !== 'PENDING') throw new AppError('This appeal is already closed', 400);
 
     const message = await prisma.appealMessage.create({
-      data: { appealId, content, senderType: 'SELLER' },
+      data: {
+        appealId,
+        content,
+        senderType: 'SELLER',
+        ...(attachmentUrl  ? { attachmentUrl }  : {}),
+        ...(attachmentName ? { attachmentName } : {}),
+      },
     });
 
     // Email all active admins
@@ -1080,8 +1092,11 @@ export const adminService = {
       select: { email: true, firstName: true },
     });
     const sellerName = `${appeal.seller.firstName} ${appeal.seller.lastName}`;
+    const emailContent = attachmentUrl
+      ? `${content}\n\n[Attachment: ${attachmentName ?? 'file'}]`
+      : content;
     for (const a of admins) {
-      void emailService.sendAppealReplyToAdmin(a.email, a.firstName, sellerName, content, appealId);
+      void emailService.sendAppealReplyToAdmin(a.email, a.firstName, sellerName, emailContent, appealId);
     }
 
     return message;
