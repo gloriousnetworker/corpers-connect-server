@@ -57,10 +57,24 @@ router.put('/settings/:key', adminController.upsertSetting);
 // ── Audit Logs ────────────────────────────────────────────────────────────────
 router.get('/audit-logs', adminController.getAuditLogs);
 
+// ── Admin Profile ────────────────────────────────────────────────────────────
+router.get('/profile', adminController.getAdminProfile);
+router.patch('/profile', adminController.updateAdminProfile);
+
+// ── Appeal Message Thread ─────────────────────────────────────────────────────
+router.get('/appeals/:appealId', adminController.getAppealThread);
+router.post('/appeals/:appealId/messages', adminController.sendAppealMessage);
+
+// ── Department Management (SUPERADMIN only) ───────────────────────────────────
+router.get('/departments', adminController.listDepartments);  // all admins can read
+router.post('/departments', requireSuperAdmin, adminController.createDepartment);
+router.delete('/departments/:id', requireSuperAdmin, adminController.deleteDepartment);
+
 // ── Admin Management (SUPERADMIN only) ────────────────────────────────────────
 router.get('/admins', requireSuperAdmin, adminController.listAdmins);
 router.post('/admins', requireSuperAdmin, adminController.createAdmin);
 router.patch('/admins/:adminId/deactivate', requireSuperAdmin, adminController.deactivateAdmin);
+router.get('/admins/:adminId', requireSuperAdmin, adminController.getAdminProfile);
 
 // ── Cleanup: delete all join requests + approved corpers (SUPERADMIN only) ───
 router.delete('/cleanup/join-requests', requireSuperAdmin, adminController.cleanupJoinRequests);

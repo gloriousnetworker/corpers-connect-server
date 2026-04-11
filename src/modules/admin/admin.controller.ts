@@ -17,6 +17,8 @@ import {
   deactivateSellerSchema,
   respondToAppealSchema,
   listSellersSchema,
+  updateAdminProfileSchema,
+  sendAppealMessageSchema,
 } from './admin.validation';
 import { ValidationError } from '../../shared/utils/errors';
 
@@ -452,6 +454,76 @@ export const adminController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  // ── Departments (SUPERADMIN only) ────────────────────────────────────────────
+
+  async listDepartments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await adminService.listDepartments();
+      res.json({ status: 'success', data });
+    } catch (err) { next(err); }
+  },
+
+  async createDepartment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { createDepartmentSchema } = await import('./admin.validation');
+      const { name } = createDepartmentSchema.parse(req.body);
+      const data = await adminService.createDepartment(name, req.user!.id);
+      res.status(201).json({ status: 'success', data });
+    } catch (err) { next(err); }
+  },
+
+  async deleteDepartment(req: Request, res: Response, next: NextFunction) {
+    try {
+      await adminService.deleteDepartment(p(req.params.id), req.user!.id);
+      res.json({ status: 'success', data: null, message: 'Department deleted' });
+    } catch (err) { next(err); }
+  },
+
+  // ── Admin Profile ─────────────────────────────────────────────────────────────
+
+  async getAdminProfile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const targetId = req.params.adminId ? p(req.params.adminId) : req.user!.id;
+      const data = await adminService.getAdminProfile(targetId);
+      res.json({ status: 'success', data });
+    } catch (err) { next(err); }
+  },
+
+  async updateAdminProfile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dto = updateAdminProfileSchema.parse(req.body);
+      let picUrl: string | undefined;
+
+      // Handle optional profile picture upload
+      if ((req as any).file) {
+        const { uploadToCloudinary } = await import('../../shared/middleware/upload.middleware');
+        picUrl = await uploadToCloudinary((req as any).file.buffer, 'corpers_connect/admin_avatars', {
+          width: 400, height: 400, crop: 'fill', gravity: 'face',
+        });
+      }
+
+      const data = await adminService.updateAdminProfile(req.user!.id, dto, picUrl);
+      res.json({ status: 'success', data, message: 'Profile updated' });
+    } catch (err) { next(err); }
+  },
+
+  // ── Appeal Message Thread ─────────────────────────────────────────────────────
+
+  async getAppealThread(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await adminService.getAppealThread(p(req.params.appealId), req.user!.id);
+      res.json({ status: 'success', data });
+    } catch (err) { next(err); }
+  },
+
+  async sendAppealMessage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { content } = sendAppealMessageSchema.parse(req.body);
+      const data = await adminService.sendAppealMessage(p(req.params.appealId), req.user!.id, content);
+      res.status(201).json({ status: 'success', data });
+    } catch (err) { next(err); }
   },
 
   // ── Cleanup: delete all join requests + approved corpers ───────────────────

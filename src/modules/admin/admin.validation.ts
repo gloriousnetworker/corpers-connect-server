@@ -93,6 +93,21 @@ export const listSellersSchema = z.object({
   status: z.string().optional(),
 });
 
+export const updateAdminProfileSchema = z.object({
+  firstName:  z.string().min(1).max(60).optional(),
+  lastName:   z.string().min(1).max(60).optional(),
+  department: z.string().min(1).max(100).optional(),
+  bio:        z.string().max(500).optional(),
+});
+
+export const createDepartmentSchema = z.object({
+  name: z.string().min(1, 'Department name is required').max(100),
+});
+
+export const sendAppealMessageSchema = z.object({
+  content: z.string().min(1, 'Message cannot be empty').max(2000),
+});
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AdminLoginDto = z.infer<typeof adminLoginSchema>;
@@ -108,3 +123,6 @@ export type CreateAdminDto = z.infer<typeof createAdminSchema>;
 export type DeactivateSellerDto = z.infer<typeof deactivateSellerSchema>;
 export type RespondToAppealDto = z.infer<typeof respondToAppealSchema>;
 export type ListSellersDto = z.infer<typeof listSellersSchema>;
+export type UpdateAdminProfileDto = z.infer<typeof updateAdminProfileSchema>;
+export type SendAppealMessageDto = z.infer<typeof sendAppealMessageSchema>;
+export type CreateDepartmentDto = z.infer<typeof createDepartmentSchema>;

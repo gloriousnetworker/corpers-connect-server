@@ -158,6 +158,7 @@ enum AppealStatus {
   REJECTED
 }
 
+
 enum ApplicationStatus {
   PENDING
   REVIEWED
@@ -324,15 +325,29 @@ model AdminUser {
   firstName        String
   lastName         String
   role             AdminRole @default(ADMIN)
+  department       String    @default("General")
+  profilePicture   String?
+  bio              String?   @db.Text
   isActive         Boolean   @default(true)
   twoFactorEnabled Boolean   @default(false)
   twoFactorSecret  String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  auditLogs      AuditLog[]
-  joinRequests   JoinRequest[]
-  sellerAppeals  SellerAppeal[]
+  auditLogs           AuditLog[]
+  joinRequests        JoinRequest[]
+  sellerAppeals       SellerAppeal[]
+  appealMessages      AppealMessage[]
+  createdDepartments  AdminDepartment[] @relation("DepartmentCreator")
+}
+
+model AdminDepartment {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy AdminUser @relation("DepartmentCreator", fields: [createdById], references: [id])
 }
 
 // ─── POSTS & FEED ─────────────────────────────────────────────────────────────
@@ -685,10 +700,25 @@ model SellerAppeal {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  seller User       @relation("SellerAppeals", fields: [sellerId], references: [id], onDelete: Cascade)
-  admin  AdminUser? @relation(fields: [adminId], references: [id])
+  seller   User            @relation("SellerAppeals", fields: [sellerId], references: [id], onDelete: Cascade)
+  admin    AdminUser?      @relation(fields: [adminId], references: [id])
+  messages AppealMessage[]
 
   @@index([sellerId])
+}
+
+model AppealMessage {
+  id         String    @id @default(cuid())
+  appealId   String
+  content    String    @db.Text
+  senderType String    // "SELLER" | "ADMIN"
+  adminId    String?   // set when senderType == "ADMIN"
+  createdAt  DateTime  @default(now())
+
+  appeal SellerAppeal @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  admin  AdminUser?   @relation(fields: [adminId], references: [id])
+
+  @@index([appealId])
 }
 
 model ListingComment {

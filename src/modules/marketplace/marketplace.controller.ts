@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { marketplaceService } from './marketplace.service';
+import { adminService } from '../admin/admin.service';
 import {
   applySellerSchema,
   createListingSchema,
@@ -336,6 +337,20 @@ export const marketplaceController = {
     try {
       const appeals = await marketplaceService.getMyAppeals(req.user!.id);
       res.json({ status: 'success', data: appeals });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async replyToAppeal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { content } = req.body as { content?: string };
+      if (!content || typeof content !== 'string' || content.trim().length < 1) {
+        res.status(400).json({ status: 'error', message: 'Reply cannot be empty' });
+        return;
+      }
+      const data = await adminService.sellerReplyToAppeal(p(req.params.appealId), req.user!.id, content.trim());
+      res.status(201).json({ status: 'success', data });
     } catch (err) {
       next(err);
     }

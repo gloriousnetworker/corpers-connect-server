@@ -414,4 +414,68 @@ export const emailService = {
     `);
     await send(to, 'Update on your Mami Market appeal', html, 'appeal-rejected');
   },
+
+  async sendAppealMessageToSeller(
+    to: string,
+    sellerName: string,
+    adminName: string,
+    adminDepartment: string,
+    messageContent: string,
+    appealId: string,
+  ): Promise<void> {
+    const safeName   = escapeHtml(sellerName);
+    const safeAdmin  = escapeHtml(adminName);
+    const safeDept   = escapeHtml(adminDepartment);
+    const safeMsg    = escapeHtml(messageContent);
+    const appealUrl  = `${env.CLIENT_URL}?seller-appeal=1`;
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">
+        You have a new message regarding your Mami Market appeal from the
+        <strong>${safeDept} department</strong>.
+      </p>
+      <div style="background: #f9f9f9; border-left: 4px solid #008751; border-radius: 6px;
+                  padding: 16px 20px; margin: 20px 0;">
+        <p style="color: #008751; font-size: 13px; font-weight: bold; margin: 0 0 8px;">
+          ${safeAdmin} · ${safeDept}
+        </p>
+        <p style="color: #333; font-size: 14px; margin: 0; line-height: 1.6;">${safeMsg}</p>
+      </div>
+      <p style="color: #555; font-size: 14px;">
+        Please open the app to review this message and reply directly in your appeal thread.
+      </p>
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${appealUrl}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          View &amp; Reply in App
+        </a>
+      </div>
+    `);
+    await send(to, `New message from Corpers Connect ${adminDepartment} team`, html, 'appeal-message');
+  },
+
+  async sendAppealReplyToAdmin(
+    to: string,
+    adminFirstName: string,
+    sellerName: string,
+    messageContent: string,
+    appealId: string,
+  ): Promise<void> {
+    const safeAdmin  = escapeHtml(adminFirstName);
+    const safeSeller = escapeHtml(sellerName);
+    const safeMsg    = escapeHtml(messageContent);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeAdmin}</strong>,</p>
+      <p style="color: #555;">
+        <strong>${safeSeller}</strong> has replied to their Mami Market appeal.
+      </p>
+      <div style="background: #f9f9f9; border-left: 4px solid #e67e22; border-radius: 6px;
+                  padding: 16px 20px; margin: 20px 0;">
+        <p style="color: #e67e22; font-size: 13px; font-weight: bold; margin: 0 0 8px;">${safeSeller}</p>
+        <p style="color: #333; font-size: 14px; margin: 0; line-height: 1.6;">${safeMsg}</p>
+      </div>
+      <p style="color: #555; font-size: 14px;">Log in to the admin dashboard to review and respond.</p>
+    `);
+    await send(to, `${sellerName} replied to their appeal`, html, 'appeal-reply');
+  },
 };

@@ -19,6 +19,7 @@ import {
   CreateAdminDto,
   DeactivateSellerDto,
 } from './admin.validation';
+
 import { PLANS } from '../subscriptions/subscriptions.validation';
 import { emailService } from '../../shared/services/email.service';
 import { notificationsService } from '../notifications/notifications.service';
@@ -811,7 +812,11 @@ export const adminService = {
       orderBy: { createdAt: 'desc' },
       include: {
         seller: { select: { id: true, firstName: true, lastName: true, email: true } },
-        admin: { select: { id: true, firstName: true, lastName: true } },
+        admin:  { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: { admin: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } } },
+        },
       },
     });
   },
@@ -905,7 +910,11 @@ export const adminService = {
   async listAdmins() {
     return prisma.adminUser.findMany({
       orderBy: { createdAt: 'desc' },
-      select: { id: true, email: true, firstName: true, lastName: true, role: true, isActive: true, createdAt: true },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, department: true, profilePicture: true, bio: true,
+        isActive: true, createdAt: true,
+      },
     });
   },
 
@@ -937,6 +946,145 @@ export const adminService = {
 
     await prisma.adminUser.update({ where: { id: adminId }, data: { isActive: false } });
     await audit(superAdminId, 'ADMIN_DEACTIVATED', { entityId: adminId, ipAddress });
+  },
+
+  // ── Department Management (SUPERADMIN only) ──────────────────────────────────
+
+  async listDepartments() {
+    return prisma.adminDepartment.findMany({
+      orderBy: { name: 'asc' },
+      include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
+    });
+  },
+
+  async createDepartment(name: string, superAdminId: string) {
+    const existing = await prisma.adminDepartment.findUnique({ where: { name } });
+    if (existing) throw new AppError('Department already exists', 409);
+    return prisma.adminDepartment.create({
+      data: { name, createdById: superAdminId },
+    });
+  },
+
+  async deleteDepartment(id: string, superAdminId: string) {
+    const dept = await prisma.adminDepartment.findUnique({ where: { id } });
+    if (!dept) throw new AppError('Department not found', 404);
+    await prisma.adminDepartment.delete({ where: { id } });
+  },
+
+  // ── Admin Profile ─────────────────────────────────────────────────────────────
+
+  async getAdminProfile(adminId: string) {
+    const admin = await prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, department: true, profilePicture: true, bio: true,
+        isActive: true, createdAt: true,
+      },
+    });
+    if (!admin) throw new AppError('Admin not found', 404);
+    return admin;
+  },
+
+  async updateAdminProfile(
+    adminId: string,
+    dto: import('./admin.validation').UpdateAdminProfileDto,
+    profilePictureUrl?: string,
+  ) {
+    return prisma.adminUser.update({
+      where: { id: adminId },
+      data: {
+        ...(dto.firstName !== undefined && { firstName: dto.firstName }),
+        ...(dto.lastName  !== undefined && { lastName:  dto.lastName  }),
+        ...(dto.department !== undefined && { department: dto.department as never }),
+        ...(dto.bio       !== undefined && { bio:       dto.bio       }),
+        ...(profilePictureUrl && { profilePicture: profilePictureUrl }),
+      },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, department: true, profilePicture: true, bio: true,
+      },
+    });
+  },
+
+  // ── Appeal Message Thread ─────────────────────────────────────────────────────
+
+  async getAppealThread(appealId: string, requestingAdminId: string) {
+    const appeal = await prisma.sellerAppeal.findUnique({
+      where: { id: appealId },
+      include: {
+        seller: { select: { id: true, firstName: true, lastName: true, email: true } },
+        admin:  { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: { admin: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } } },
+        },
+      },
+    });
+    if (!appeal) throw new AppError('Appeal not found', 404);
+    return appeal;
+  },
+
+  async sendAppealMessage(appealId: string, adminId: string, content: string) {
+    const appeal = await prisma.sellerAppeal.findUnique({
+      where: { id: appealId },
+      include: {
+        seller: { select: { email: true, firstName: true } },
+      },
+    });
+    if (!appeal) throw new AppError('Appeal not found', 404);
+    if (appeal.status !== 'PENDING') throw new AppError('This appeal is already closed', 400);
+
+    const admin = await prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: { firstName: true, lastName: true, department: true },
+    });
+    if (!admin) throw new AppError('Admin not found', 404);
+
+    const message = await prisma.appealMessage.create({
+      data: { appealId, content, senderType: 'ADMIN', adminId },
+      include: { admin: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } } },
+    });
+
+    // Email the seller
+    void emailService.sendAppealMessageToSeller(
+      appeal.seller.email,
+      appeal.seller.firstName,
+      `${admin.firstName} ${admin.lastName}`,
+      admin.department,
+      content,
+      appealId,
+    );
+
+    return message;
+  },
+
+  // ── Seller Reply to Admin (appeal thread) ─────────────────────────────────────
+
+  async sellerReplyToAppeal(appealId: string, sellerId: string, content: string) {
+    const appeal = await prisma.sellerAppeal.findUnique({
+      where: { id: appealId },
+      include: { seller: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    if (!appeal) throw new AppError('Appeal not found', 404);
+    if (appeal.sellerId !== sellerId) throw new AppError('Not your appeal', 403);
+    if (appeal.status !== 'PENDING') throw new AppError('This appeal is already closed', 400);
+
+    const message = await prisma.appealMessage.create({
+      data: { appealId, content, senderType: 'SELLER' },
+    });
+
+    // Email all active admins
+    const admins = await prisma.adminUser.findMany({
+      where: { isActive: true },
+      select: { email: true, firstName: true },
+    });
+    const sellerName = `${appeal.seller.firstName} ${appeal.seller.lastName}`;
+    for (const a of admins) {
+      void emailService.sendAppealReplyToAdmin(a.email, a.firstName, sellerName, content, appealId);
+    }
+
+    return message;
   },
 };
 
