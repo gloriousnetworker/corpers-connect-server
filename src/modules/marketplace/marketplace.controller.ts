@@ -342,6 +342,15 @@ export const marketplaceController = {
     }
   },
 
+  async getAppealMessages(req: Request, res: Response, next: NextFunction) {
+    try {
+      const messages = await marketplaceService.getAppealMessages(p(req.params.appealId), req.user!.id);
+      res.json({ status: 'success', data: messages });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async replyToAppeal(req: Request, res: Response, next: NextFunction) {
     try {
       const { content } = req.body as { content?: string };

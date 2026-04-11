@@ -24,6 +24,7 @@ router.get('/my-application', authenticate, marketplaceController.getMyApplicati
 router.get('/my-seller-profile', authenticate, marketplaceController.getMySellerProfile);
 router.post('/my-seller-profile/appeal', authenticate, marketplaceController.submitAppeal);
 router.get('/my-seller-profile/appeals', authenticate, marketplaceController.getMyAppeals);
+router.get('/my-seller-profile/appeals/:appealId/messages', authenticate, marketplaceController.getAppealMessages);
 router.post('/my-seller-profile/appeals/:appealId/reply', authenticate, marketplaceController.replyToAppeal);
 
 // ── My Listings ───────────────────────────────────────────────────────────────

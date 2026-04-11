@@ -186,10 +186,34 @@ export const marketplaceService = {
     return appeal;
   },
 
+  async getAppealMessages(appealId: string, userId: string) {
+    const appeal = await prisma.sellerAppeal.findUnique({ where: { id: appealId } });
+    if (!appeal || appeal.sellerId !== userId) throw new NotFoundError('Appeal not found');
+    return prisma.appealMessage.findMany({
+      where: { appealId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        admin: {
+          select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true },
+        },
+      },
+    });
+  },
+
   async getMyAppeals(userId: string) {
     return prisma.sellerAppeal.findMany({
       where: { sellerId: userId },
       orderBy: { createdAt: 'desc' },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            admin: {
+              select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true },
+            },
+          },
+        },
+      },
     });
   },
 
