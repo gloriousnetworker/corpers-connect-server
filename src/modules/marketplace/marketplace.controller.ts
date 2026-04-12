@@ -16,8 +16,8 @@ import {
   idDocUpload,
   listingImagesUpload,
   uploadToCloudinary,
-  uploadDocumentToCloudinary,
   appealAttachmentUpload,
+  uploadAppealAttachmentToCloudinary,
 } from '../../shared/middleware/upload.middleware';
 import { AppError, ValidationError } from '../../shared/utils/errors';
 
@@ -368,10 +368,10 @@ export const marketplaceController = {
         let attachmentName: string | undefined;
 
         if (req.file) {
-          const isImage = req.file.mimetype.startsWith('image/');
-          attachmentUrl = isImage
-            ? await uploadToCloudinary(req.file.buffer, 'corpers_connect/appeal_attachments', { quality: 'auto', format: 'webp' })
-            : await uploadDocumentToCloudinary(req.file.buffer, 'corpers_connect/appeal_attachments');
+          // Use auto resource_type + use_filename so the URL preserves the
+          // original file extension — required for fl_inline PDF delivery
+          // and correct image/document type detection on the frontend.
+          attachmentUrl  = await uploadAppealAttachmentToCloudinary(req.file.buffer, 'corpers_connect/appeal_attachments');
           attachmentName = req.file.originalname;
         }
 

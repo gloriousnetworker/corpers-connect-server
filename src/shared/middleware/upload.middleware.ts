@@ -124,6 +124,24 @@ export const uploadDocumentToCloudinary = (buffer: Buffer, folder: string): Prom
     stream.end(buffer);
   });
 
+/**
+ * Upload any file (image, PDF, DOC) for appeal attachments.
+ * Uses resource_type:'auto' so Cloudinary sets the correct MIME type,
+ * and use_filename:true so the original filename (with extension) is
+ * preserved in the URL — required for fl_inline PDF delivery.
+ */
+export const uploadAppealAttachmentToCloudinary = (buffer: Buffer, folder: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: 'auto', use_filename: true, unique_filename: true },
+      (error, result) => {
+        if (error || !result) return reject(error ?? new Error('Cloudinary upload failed'));
+        resolve(result.secure_url);
+      },
+    );
+    stream.end(buffer);
+  });
+
 // For stories/reels — auto-detect image vs video
 export const uploadMediaToCloudinary = (
   buffer: Buffer,
