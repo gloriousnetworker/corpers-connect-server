@@ -811,8 +811,9 @@ export const adminService = {
       where: { sellerId: userId },
       orderBy: { createdAt: 'desc' },
       include: {
-        seller: { select: { id: true, firstName: true, lastName: true, email: true } },
-        admin:  { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
+        seller:    { select: { id: true, firstName: true, lastName: true, email: true } },
+        admin:     { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
+        claimedBy: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
         messages: {
           orderBy: { createdAt: 'asc' },
           include: { admin: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } } },
@@ -841,6 +842,8 @@ export const adminService = {
         adminId,
         adminResponse: dto.adminResponse,
         respondedAt: new Date(),
+        claimedByAdminId: null, // release claim on resolution
+        claimedAt: null,
       },
     });
 
@@ -1013,8 +1016,9 @@ export const adminService = {
     const appeal = await prisma.sellerAppeal.findUnique({
       where: { id: appealId },
       include: {
-        seller: { select: { id: true, firstName: true, lastName: true, email: true } },
-        admin:  { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
+        seller:    { select: { id: true, firstName: true, lastName: true, email: true } },
+        admin:     { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
+        claimedBy: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } },
         messages: {
           orderBy: { createdAt: 'asc' },
           include: { admin: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } } },
@@ -1029,11 +1033,21 @@ export const adminService = {
     const appeal = await prisma.sellerAppeal.findUnique({
       where: { id: appealId },
       include: {
-        seller: { select: { email: true, firstName: true } },
+        seller:    { select: { email: true, firstName: true } },
+        claimedBy: { select: { id: true, firstName: true, lastName: true, department: true } },
       },
     });
     if (!appeal) throw new AppError('Appeal not found', 404);
     if (appeal.status !== 'PENDING') throw new AppError('This appeal is already closed', 400);
+
+    // Enforce claim lock — if another admin has already claimed this appeal, block
+    if (appeal.claimedByAdminId && appeal.claimedByAdminId !== adminId) {
+      const claimer = appeal.claimedBy!;
+      throw new AppError(
+        `This appeal is being handled by ${claimer.firstName} ${claimer.lastName} (${claimer.department ?? 'Admin'}).`,
+        403,
+      );
+    }
 
     const admin = await prisma.adminUser.findUnique({
       where: { id: adminId },
@@ -1041,10 +1055,19 @@ export const adminService = {
     });
     if (!admin) throw new AppError('Admin not found', 404);
 
-    const message = await prisma.appealMessage.create({
-      data: { appealId, content, senderType: 'ADMIN', adminId },
-      include: { admin: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } } },
-    });
+    // Auto-claim on first admin message
+    const [message] = await prisma.$transaction([
+      prisma.appealMessage.create({
+        data: { appealId, content, senderType: 'ADMIN', adminId },
+        include: { admin: { select: { id: true, firstName: true, lastName: true, department: true, profilePicture: true } } },
+      }),
+      ...(!appeal.claimedByAdminId
+        ? [prisma.sellerAppeal.update({
+            where: { id: appealId },
+            data: { claimedByAdminId: adminId, claimedAt: new Date() },
+          })]
+        : []),
+    ]);
 
     // Email the seller
     void emailService.sendAppealMessageToSeller(

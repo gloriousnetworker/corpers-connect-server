@@ -336,7 +336,8 @@ model AdminUser {
 
   auditLogs           AuditLog[]
   joinRequests        JoinRequest[]
-  sellerAppeals       SellerAppeal[]
+  sellerAppeals       SellerAppeal[]    @relation("AppealDecision")
+  claimedAppeals      SellerAppeal[]    @relation("AppealClaim")
   appealMessages      AppealMessage[]
   createdDepartments  AdminDepartment[] @relation("DepartmentCreator")
 }
@@ -690,19 +691,22 @@ model SellerProfile {
 }
 
 model SellerAppeal {
-  id            String       @id @default(cuid())
-  sellerId      String
-  message       String       @db.Text
-  status        AppealStatus @default(PENDING)
-  adminId       String?
-  adminResponse String?      @db.Text
-  respondedAt   DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id               String       @id @default(cuid())
+  sellerId         String
+  message          String       @db.Text
+  status           AppealStatus @default(PENDING)
+  adminId          String?
+  adminResponse    String?      @db.Text
+  respondedAt      DateTime?
+  claimedByAdminId String?      // admin currently handling this appeal
+  claimedAt        DateTime?    // when it was claimed
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
-  seller   User            @relation("SellerAppeals", fields: [sellerId], references: [id], onDelete: Cascade)
-  admin    AdminUser?      @relation(fields: [adminId], references: [id])
-  messages AppealMessage[]
+  seller    User            @relation("SellerAppeals", fields: [sellerId], references: [id], onDelete: Cascade)
+  admin     AdminUser?      @relation("AppealDecision", fields: [adminId], references: [id])
+  claimedBy AdminUser?      @relation("AppealClaim", fields: [claimedByAdminId], references: [id])
+  messages  AppealMessage[]
 
   @@index([sellerId])
 }
