@@ -35,11 +35,17 @@ function refreshCookieOptions(): CookieOptions {
   return {
     httpOnly: true,
     secure: isProd,
-    // SameSite=None required for cross-origin cookies (corpersconnect.com.ng → railway.app).
-    // SameSite=Lax silently blocks the cookie on cross-origin POST.
+    // All API calls now go through the Next.js /api/proxy/* reverse-proxy, so
+    // the browser sees these cookies as same-origin.  SameSite=Lax is enough
+    // in production (SameSite=None was only needed for direct cross-origin
+    // requests, which we no longer make).
     sameSite: isProd ? 'none' : 'lax',
-    // Restrict to the refresh endpoint so the cookie is never sent on other requests.
-    path: '/api/v1/auth/refresh',
+    // Path must be '/' — the proxy rewrites the URL from
+    // /api/proxy/api/v1/auth/refresh → /api/v1/auth/refresh on the backend.
+    // If we set path=/api/v1/auth/refresh, the browser stores the cookie under
+    // that path but the request the browser sees is /api/proxy/…, so the path
+    // never matches and the cookie is never sent.
+    path: '/',
     maxAge: SESSION_MAX_AGE_MS,
   };
 }
