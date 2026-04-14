@@ -33,6 +33,7 @@ export const sendMessageSchema = z.object({
   type: z.nativeEnum(MessageType).default(MessageType.TEXT),
   mediaUrl: z.string().url().optional(),
   replyToId: z.string().optional(),
+  storyId: z.string().optional(),
 }).refine((d) => d.content || d.mediaUrl, {
   message: 'Message must have content or mediaUrl',
 });

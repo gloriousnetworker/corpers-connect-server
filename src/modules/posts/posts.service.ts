@@ -298,7 +298,7 @@ export const postsService = {
 
   // ── Comments ─────────────────────────────────────────────────────────────────
 
-  async addComment(userId: string, postId: string, content: string, parentId?: string) {
+  async addComment(userId: string, postId: string, content: string, parentId?: string, mediaIndex?: number) {
     const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
@@ -309,7 +309,7 @@ export const postsService = {
     }
 
     const comment = await prisma.comment.create({
-      data: { postId, authorId: userId, content, parentId },
+      data: { postId, authorId: userId, content, parentId, mediaIndex: mediaIndex ?? null },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
         reactions: { select: { id: true, userId: true, emoji: true } },
@@ -357,12 +357,16 @@ export const postsService = {
     await prisma.comment.delete({ where: { id: commentId } });
   },
 
-  async getComments(postId: string, cursor?: string, limit = DEFAULT_LIMIT) {
+  async getComments(postId: string, cursor?: string, limit = DEFAULT_LIMIT, mediaIndex?: number) {
     const post = await prisma.post.findUnique({ where: { id: postId, isDeleted: false } });
     if (!post) throw new NotFoundError('Post not found');
 
+    const mediaFilter = mediaIndex !== undefined
+      ? { mediaIndex }
+      : { mediaIndex: null };
+
     const rows = await prisma.comment.findMany({
-      where: { postId, parentId: null },
+      where: { postId, parentId: null, ...mediaFilter },
       take: limit + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy: { createdAt: 'asc' },

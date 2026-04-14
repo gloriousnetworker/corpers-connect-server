@@ -287,6 +287,7 @@ export const messagingService = {
         type: dto.type as MessageType,
         mediaUrl: dto.mediaUrl,
         replyToId: dto.replyToId,
+        storyId: dto.storyId,
       },
       include: {
         sender: { select: SENDER_SELECT },

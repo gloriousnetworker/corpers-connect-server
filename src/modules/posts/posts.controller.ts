@@ -109,12 +109,13 @@ export const postsController = {
 
   async addComment(req: Request, res: Response, next: NextFunction) {
     try {
-      const { content, parentId } = addCommentSchema.parse(req.body);
+      const { content, parentId, mediaIndex } = addCommentSchema.parse(req.body);
       const data = await postsService.addComment(
         req.user!.id,
         p(req.params.postId),
         content,
         parentId,
+        mediaIndex,
       );
       sendCreated(res, data, 'Comment added');
     } catch (err) {
@@ -138,7 +139,9 @@ export const postsController = {
   async getComments(req: Request, res: Response, next: NextFunction) {
     try {
       const { cursor, limit } = paginationSchema.parse(req.query);
-      const data = await postsService.getComments(p(req.params.postId), cursor, limit);
+      const mediaIndexRaw = req.query.mediaIndex;
+      const mediaIndex = mediaIndexRaw !== undefined ? parseInt(mediaIndexRaw as string, 10) : undefined;
+      const data = await postsService.getComments(p(req.params.postId), cursor, limit, isNaN(mediaIndex!) ? undefined : mediaIndex);
       sendSuccess(res, data, 'Comments retrieved');
     } catch (err) {
       next(err);

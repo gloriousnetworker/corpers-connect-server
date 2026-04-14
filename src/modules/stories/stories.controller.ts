@@ -108,4 +108,13 @@ export const storiesController = {
       next(err);
     }
   },
+
+  async getStoryById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await storiesService.getStoryById(req.user!.id, p(req.params.storyId));
+      sendSuccess(res, data, 'Story retrieved');
+    } catch (err) {
+      next(err);
+    }
+  },
 };

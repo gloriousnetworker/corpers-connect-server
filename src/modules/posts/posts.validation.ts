@@ -26,6 +26,7 @@ export const reactSchema = z.object({
 export const addCommentSchema = z.object({
   content: z.string().min(1, 'Comment cannot be empty').max(1000),
   parentId: z.string().optional(),
+  mediaIndex: z.number().int().min(0).optional(),
 });
 
 export const commentReactionSchema = z.object({

@@ -209,6 +209,7 @@ export const storiesService = {
       content: content.trim(),
       type: isStoryImage ? 'IMAGE' : 'TEXT',
       mediaUrl: isStoryImage ? story.mediaUrl : undefined,
+      storyId: storyId,
     });
 
     return { conversationId: conversation.id, message };
@@ -247,6 +248,27 @@ export const storiesService = {
         viewedAt: v.viewedAt,
         hasReacted: reactorIds.has(v.viewerId),
       })),
+    };
+  },
+
+  // ── Get single story by ID ──────────────────────────────────────────────
+  async getStoryById(userId: string, storyId: string) {
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+      include: {
+        author: { select: AUTHOR_SELECT },
+        views: { where: { viewerId: userId }, select: { viewerId: true } },
+        reactions: { where: { userId }, select: { emoji: true } },
+        _count: { select: { views: true, reactions: true } },
+      },
+    });
+    if (!story) throw new NotFoundError('Story not found or has expired');
+    return {
+      ...story,
+      viewed: story.views.length > 0,
+      myReaction: story.reactions[0]?.emoji ?? null,
+      viewCount: story._count.views,
+      reactionsCount: story._count.reactions,
     };
   },
 };

@@ -398,14 +398,15 @@ model PostReaction {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
-  postId    String
-  parentId  String?
-  authorId  String
-  content   String   @db.Text
-  isEdited  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  postId     String
+  parentId   String?
+  authorId   String
+  content    String   @db.Text
+  mediaIndex Int?
+  isEdited   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   post      Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
   parent    Comment?          @relation("CommentReplies", fields: [parentId], references: [id])
@@ -547,6 +548,7 @@ model Message {
   type           MessageType @default(TEXT)
   mediaUrl       String?
   replyToId      String?
+  storyId        String?
   isEdited       Boolean     @default(false)
   isDeleted      Boolean     @default(false)
   isPinned       Boolean     @default(false)

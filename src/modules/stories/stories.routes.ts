@@ -29,6 +29,9 @@ router.post('/:storyId/react', authenticate, storiesController.reactToStory);
 /** POST /api/v1/stories/:storyId/reply — reply to a story (sends as DM) */
 router.post('/:storyId/reply', authenticate, storiesController.replyToStory);
 
+/** GET /api/v1/stories/:storyId — get a single story by ID */
+router.get('/:storyId', authenticate, storiesController.getStoryById);
+
 /** GET /api/v1/stories/:storyId/viewers — get viewers + reactors (own stories) */
 router.get('/:storyId/viewers', authenticate, storiesController.getStoryViewers);
 
