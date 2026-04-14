@@ -202,10 +202,13 @@ export const storiesService = {
     // Create or get DM conversation with story author
     const conversation = await messagingService.createOrGetDM(userId, story.authorId);
 
-    // Send message with story context
+    // Send message with story context — include the story media as an image
+    // so the receiver can see which story is being replied to
+    const isStoryImage = story.mediaType === 'image' || !story.mediaType.startsWith('video');
     const message = await messagingService.sendMessage(userId, conversation.id, {
       content: content.trim(),
-      type: 'TEXT',
+      type: isStoryImage ? 'IMAGE' : 'TEXT',
+      mediaUrl: isStoryImage ? story.mediaUrl : undefined,
     });
 
     return { conversationId: conversation.id, message };
