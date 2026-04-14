@@ -23,6 +23,15 @@ router.post('/:storyId/highlight', authenticate, storiesController.addHighlight)
 /** DELETE /api/v1/stories/:storyId/highlight — remove story from highlights */
 router.delete('/:storyId/highlight', authenticate, storiesController.removeHighlight);
 
+/** POST /api/v1/stories/:storyId/react — toggle love reaction on a story */
+router.post('/:storyId/react', authenticate, storiesController.reactToStory);
+
+/** POST /api/v1/stories/:storyId/reply — reply to a story (sends as DM) */
+router.post('/:storyId/reply', authenticate, storiesController.replyToStory);
+
+/** GET /api/v1/stories/:storyId/viewers — get viewers + reactors (own stories) */
+router.get('/:storyId/viewers', authenticate, storiesController.getStoryViewers);
+
 /** GET /api/v1/stories/users/:userId/highlights — get a user's highlights */
 router.get('/users/:userId/highlights', storiesController.getUserHighlights);
 

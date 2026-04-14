@@ -1,8 +1,9 @@
 import { prisma } from '../../config/prisma';
-import { NotFoundError, ForbiddenError } from '../../shared/utils/errors';
+import { NotFoundError, ForbiddenError, BadRequestError } from '../../shared/utils/errors';
 import { addDays } from 'date-fns';
 import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
 import { notificationsService } from '../notifications/notifications.service';
+import { messagingService } from '../messaging/messaging.service';
 
 const AUTHOR_SELECT = {
   id: true,
@@ -58,7 +59,8 @@ export const storiesService = {
       include: {
         author: { select: AUTHOR_SELECT },
         views: { where: { viewerId: userId }, select: { viewerId: true } },
-        _count: { select: { views: true } },
+        reactions: { where: { userId }, select: { emoji: true } },
+        _count: { select: { views: true, reactions: true } },
       },
     });
 
@@ -77,6 +79,9 @@ export const storiesService = {
         ...s,
         viewed: s.views.length > 0,
         views: undefined,
+        hasReacted: s.reactions.length > 0,
+        reactionsCount: s._count.reactions,
+        reactions: undefined,
       })),
       hasUnviewed: authorStories.some((s) => s.views.length === 0),
     }));
@@ -147,5 +152,98 @@ export const storiesService = {
       },
     });
     return highlights;
+  },
+
+  // ── React to story (toggle) ──────────────────────────────────────────────
+  async reactToStory(userId: string, storyId: string) {
+    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    if (!story) throw new NotFoundError('Story not found');
+    if (story.expiresAt < new Date()) throw new NotFoundError('Story has expired');
+    if (story.authorId === userId) throw new BadRequestError('Cannot react to your own story');
+
+    // Toggle — delete if exists, create if not
+    const existing = await prisma.storyReaction.findUnique({
+      where: { storyId_userId: { storyId, userId } },
+    });
+
+    if (existing) {
+      await prisma.storyReaction.delete({ where: { id: existing.id } });
+      return { reacted: false };
+    }
+
+    await prisma.storyReaction.create({
+      data: { storyId, userId, emoji: '❤️' },
+    });
+
+    // Notify story author
+    void notificationsService.create({
+      recipientId: story.authorId,
+      actorId: userId,
+      type: 'STORY_VIEW', // reuse type — notification text differentiates
+      entityType: 'Story',
+      entityId: storyId,
+      content: 'reacted ❤️ to your story',
+    });
+
+    return { reacted: true };
+  },
+
+  // ── Reply to story (sends as DM) ────────────────────────────────────────
+  async replyToStory(userId: string, storyId: string, content: string) {
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+      include: { author: { select: AUTHOR_SELECT } },
+    });
+    if (!story) throw new NotFoundError('Story not found');
+    if (story.expiresAt < new Date()) throw new NotFoundError('Story has expired');
+    if (story.authorId === userId) throw new BadRequestError('Cannot reply to your own story');
+    if (!content.trim()) throw new BadRequestError('Reply cannot be empty');
+
+    // Create or get DM conversation with story author
+    const conversation = await messagingService.createOrGetDM(userId, story.authorId);
+
+    // Send message with story context
+    const message = await messagingService.sendMessage(userId, conversation.id, {
+      content: content.trim(),
+      type: 'TEXT',
+    });
+
+    return { conversationId: conversation.id, message };
+  },
+
+  // ── Get viewers + reactors (own stories only) ──────────────────────────
+  async getStoryViewers(userId: string, storyId: string) {
+    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    if (!story) throw new NotFoundError('Story not found');
+    if (story.authorId !== userId) throw new ForbiddenError('Not your story');
+
+    const [viewers, reactions] = await Promise.all([
+      prisma.storyView.findMany({
+        where: { storyId },
+        orderBy: { viewedAt: 'desc' },
+        include: {
+          viewer: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        },
+      }),
+      prisma.storyReaction.findMany({
+        where: { storyId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        },
+      }),
+    ]);
+
+    const reactorIds = new Set(reactions.map((r) => r.userId));
+
+    return {
+      viewCount: viewers.length,
+      reactionsCount: reactions.length,
+      viewers: viewers.map((v) => ({
+        ...v.viewer,
+        viewedAt: v.viewedAt,
+        hasReacted: reactorIds.has(v.viewerId),
+      })),
+    };
   },
 };

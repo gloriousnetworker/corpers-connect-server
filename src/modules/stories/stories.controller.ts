@@ -76,4 +76,36 @@ export const storiesController = {
       next(err);
     }
   },
+
+  async reactToStory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await storiesService.reactToStory(req.user!.id, p(req.params.storyId));
+      sendSuccess(res, result, result.reacted ? 'Reacted' : 'Reaction removed');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async replyToStory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { content } = req.body;
+      if (!content || typeof content !== 'string' || !content.trim()) {
+        res.status(400).json({ message: 'Reply content is required' });
+        return;
+      }
+      const result = await storiesService.replyToStory(req.user!.id, p(req.params.storyId), content);
+      sendSuccess(res, result, 'Reply sent as message', 201);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getStoryViewers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await storiesService.getStoryViewers(req.user!.id, p(req.params.storyId));
+      sendSuccess(res, data, 'Viewers retrieved');
+    } catch (err) {
+      next(err);
+    }
+  },
 };

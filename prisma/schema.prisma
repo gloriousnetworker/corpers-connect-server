@@ -272,6 +272,7 @@ model User {
   marketplaceBuyerConvs  MarketplaceConversation[] @relation("MarketplaceBuyer")
   marketplaceSellerConvs MarketplaceConversation[] @relation("MarketplaceSeller")
   highlights            StoryHighlight[]
+  storyReactions        StoryReaction[]
   stories               Story[]
 
   @@index([servingState])
@@ -455,9 +456,24 @@ model Story {
   author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   views      StoryView[]
   highlights StoryHighlight[]
+  reactions  StoryReaction[]
 
   @@index([authorId])
   @@index([expiresAt])
+}
+
+model StoryReaction {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  emoji     String   @default("❤️")
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
+  @@index([storyId])
 }
 
 // Add Story relation to User
