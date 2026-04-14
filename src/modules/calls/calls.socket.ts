@@ -30,6 +30,10 @@ export function registerCallHandlers(ns: Namespace<any, any, any, any>) {
   ns.on('connection', (socket: AuthenticatedSocket) => {
     const userId = socket.data.userId;
 
+    // Each user joins their personal room so targeted events (call:incoming,
+    // call:accepted, etc.) can reach them even if they have multiple tabs open.
+    void socket.join(`user:${userId}`);
+
     // ── call:initiate ────────────────────────────────────────────────────────
     // Rate limit: 5 call initiations per minute per user — prevents call harassment.
     socket.on(
