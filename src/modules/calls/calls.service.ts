@@ -53,21 +53,22 @@ export const callsService = {
 
     if (callerId === receiverId) throw new BadRequestError('Cannot call yourself');
 
-    const receiver = await prisma.user.findUnique({
-      where: { id: receiverId },
-      select: { id: true, isActive: true },
-    });
+    // Run receiver lookup + block check in parallel to cut ~150ms
+    const [receiver, block] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: receiverId },
+        select: { id: true, isActive: true },
+      }),
+      prisma.block.findFirst({
+        where: {
+          OR: [
+            { blockerId: callerId, blockedId: receiverId },
+            { blockerId: receiverId, blockedId: callerId },
+          ],
+        },
+      }),
+    ]);
     if (!receiver || !receiver.isActive) throw new NotFoundError('User not found');
-
-    // Block check
-    const block = await prisma.block.findFirst({
-      where: {
-        OR: [
-          { blockerId: callerId, blockedId: receiverId },
-          { blockerId: receiverId, blockedId: callerId },
-        ],
-      },
-    });
     if (block) throw new ForbiddenError('Cannot call this user');
 
     const callLog = await prisma.callLog.create({
