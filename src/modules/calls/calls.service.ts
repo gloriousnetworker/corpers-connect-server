@@ -249,6 +249,49 @@ export const callsService = {
   },
 
   /**
+   * Initiate a group call — generates a shared Agora channel and tokens for
+   * all group members. No CallLog is created; the channel name acts as the ID.
+   */
+  async initiateGroupCall(callerId: string, conversationId: string, type: CallType) {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        participants: {
+          include: { user: { select: CALLER_SELECT } },
+        },
+      },
+    });
+    if (!conversation) throw new NotFoundError('Conversation not found');
+
+    const callerParticipant = conversation.participants.find((p) => p.userId === callerId);
+    if (!callerParticipant) throw new ForbiddenError('Not a member of this conversation');
+
+    const otherParticipants = conversation.participants.filter((p) => p.userId !== callerId);
+    if (otherParticipants.length === 0) throw new BadRequestError('No other members to call');
+
+    const channelName = `grp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const callerToken = generateAgoraToken(channelName, 1);
+
+    const memberTokens = otherParticipants.map((p, idx) => ({
+      userId: p.userId,
+      user: p.user,
+      token: generateAgoraToken(channelName, idx + 2),
+      uid: idx + 2,
+    }));
+
+    return {
+      channelName,
+      callerToken,
+      callerUid: 1,
+      memberTokens,
+      caller: callerParticipant.user,
+      groupName: conversation.name ?? 'Group Call',
+      appId: env.AGORA_APP_ID ?? 'dev-app-id',
+      type,
+    };
+  },
+
+  /**
    * Generate a fresh Agora RTC token (for token refresh mid-call).
    */
   async refreshToken(callId: string, userId: string) {

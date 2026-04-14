@@ -79,6 +79,61 @@ export function registerCallHandlers(ns: Namespace<any, any, any, any>) {
       },
     );
 
+    // ── call:initiate-group ──────────────────────────────────────────────────
+    socket.on(
+      'call:initiate-group',
+      async (
+        data: { conversationId: string; type?: 'VOICE' | 'VIDEO' },
+        ack?: (result: { success: boolean; data?: unknown; error?: string }) => void,
+      ) => {
+        const rl = await socketRateLimit(userId, 'call:initiate', 5, 60);
+        if (!rl.allowed) {
+          const error = `Rate limit exceeded. Retry in ${rl.retryAfter}s.`;
+          if (ack) ack({ success: false, error });
+          return;
+        }
+
+        try {
+          const { CallType } = await import('@prisma/client');
+          const result = await callsService.initiateGroupCall(
+            userId,
+            data.conversationId,
+            (data.type ?? 'VOICE') as import('@prisma/client').CallType,
+          );
+
+          for (const member of result.memberTokens) {
+            ns.to(`user:${member.userId}`).emit('call:incoming', {
+              callId: result.channelName,
+              callerId: userId,
+              caller: result.caller,
+              type: result.type,
+              channelName: result.channelName,
+              token: member.token,
+              uid: member.uid,
+              appId: result.appId,
+              isGroup: true,
+              groupName: result.groupName,
+            });
+          }
+
+          if (ack) ack({
+            success: true,
+            data: {
+              callId: result.channelName,
+              channelName: result.channelName,
+              token: result.callerToken,
+              uid: result.callerUid,
+              appId: result.appId,
+            },
+          });
+        } catch (err) {
+          const error = err instanceof Error ? err.message : 'Failed to initiate group call';
+          if (ack) ack({ success: false, error });
+          socket.emit('call:error', { message: error });
+        }
+      },
+    );
+
     // ── call:accept ──────────────────────────────────────────────────────────
     socket.on(
       'call:accept',
