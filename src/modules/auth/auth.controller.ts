@@ -18,29 +18,50 @@ import {
 // ── Refresh token cookie helpers ───────────────────────────────────────────────
 
 const REFRESH_COOKIE = 'cc_refresh_token';
+const SESSION_FLAG_COOKIE = 'cc_session';
+// 1 year in ms — sessions never expire under normal use; token rotation keeps
+// them alive on every visit. Only an explicit logout clears the session.
+const SESSION_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 
-function refreshCookieOptions(): CookieOptions {
+function getIsProd(): boolean {
   // Detect production by CLIENT_URL, not NODE_ENV — Railway does NOT auto-set
   // NODE_ENV=production, so relying on it caused SameSite=Lax cookies in prod,
   // which browsers block on cross-origin POST requests (frontend ≠ backend domain).
-  const isProd = !env.CLIENT_URL.includes('localhost');
+  return !env.CLIENT_URL.includes('localhost');
+}
+
+function refreshCookieOptions(): CookieOptions {
+  const isProd = getIsProd();
   return {
     httpOnly: true,
     secure: isProd,
     // SameSite=None required for cross-origin cookies (corpersconnect.com.ng → railway.app).
-    // SameSite=Lax silently blocks the cookie on cross-origin POST — the root cause of
-    // "session expires on every page refresh".
+    // SameSite=Lax silently blocks the cookie on cross-origin POST.
     sameSite: isProd ? 'none' : 'lax',
     // Restrict to the refresh endpoint so the cookie is never sent on other requests.
     path: '/api/v1/auth/refresh',
-    maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days in ms
+    maxAge: SESSION_MAX_AGE_MS,
+  };
+}
+
+function sessionFlagCookieOptions(): CookieOptions {
+  const isProd = getIsProd();
+  return {
+    // NOT httpOnly — middleware reads it via Next.js Edge runtime, and the
+    // client store needs to clear it on logout.  No sensitive data here.
+    httpOnly: false,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+    maxAge: SESSION_MAX_AGE_MS,
   };
 }
 
 /**
  * Extracts the refreshToken from a service result, sets it as an httpOnly
- * cookie, and returns the rest of the data (without the token) for the
- * JSON response body.
+ * cookie, and also sets a visible cc_session flag cookie (server-set so it is
+ * immune to iOS ITP's 7-day cap on JS-set cookies). Returns the rest of the
+ * data (without the token) for the JSON response body.
  */
 function setRefreshCookie(
   res: Response,
@@ -48,6 +69,9 @@ function setRefreshCookie(
 ): Record<string, unknown> {
   if (typeof data.refreshToken === 'string') {
     res.cookie(REFRESH_COOKIE, data.refreshToken, refreshCookieOptions());
+    // Set session flag — lets Next.js middleware know the user is authenticated
+    // without exposing any secret. Server-set means iOS ITP won't cap it at 7 days.
+    res.cookie(SESSION_FLAG_COOKIE, '1', sessionFlagCookieOptions());
     const { refreshToken: _rt, ...rest } = data;
     return rest;
   }
@@ -134,8 +158,9 @@ export const authController = {
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
       await authService.logout(req.user!.id, req.user!.sessionId ?? '', req.user!.jti);
-      // Clear the refresh token cookie
+      // Clear both auth cookies
       res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(), maxAge: 0 });
+      res.clearCookie(SESSION_FLAG_COOKIE, { ...sessionFlagCookieOptions(), maxAge: 0 });
       sendSuccess(res, null, 'Logged out successfully');
     } catch (err) {
       next(err);
