@@ -275,6 +275,11 @@ model User {
   storyReactions        StoryReaction[]
   stories               Story[]
   campDays              CampDayEntry[]
+  booksWritten          Book[]                   @relation("BookAuthor")
+  bookPurchases         BookPurchase[]
+  bookReviews           BookReview[]
+  bookProgress          BookProgress[]
+  wallet                Wallet?
 
   @@index([servingState])
   @@index([email])
@@ -1031,4 +1036,181 @@ model CampDayEntry {
   @@unique([userId, dayNumber])
   @@index([userId])
   @@index([visibility])
+}
+
+// ─── LIBRARY (E-BOOKS) ────────────────────────────────────────────────────────
+// Corpers publish e-books, others buy + read them in-app. 85% of each sale
+// goes to the author's wallet; platform keeps 15%.
+
+enum BookGenre {
+  FICTION
+  NON_FICTION
+  RELIGIOUS
+  SELF_HELP
+  BUSINESS
+  BIOGRAPHY
+  POETRY
+  ACADEMIC
+  CHILDREN
+  HEALTH
+  TECHNOLOGY
+  HISTORY
+  OTHER
+}
+
+enum BookStatus {
+  DRAFT
+  PUBLISHED
+  UNLISTED
+}
+
+enum WalletTxType {
+  CREDIT_SALE
+  DEBIT_PAYOUT
+  DEBIT_REFUND
+  CREDIT_BONUS
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+model Book {
+  id                String     @id @default(cuid())
+  authorId          String
+  title             String     @db.VarChar(200)
+  subtitle          String?    @db.VarChar(200)
+  description       String     @db.Text
+  aboutTheAuthor    String?    @db.Text
+  coverImageUrl     String
+  backCoverImageUrl String?
+  pdfUrl            String     // Cloudinary 'raw' URL — never served directly to non-owners
+  pageCount         Int?
+  language          String     @default("English")
+  genre             BookGenre  @default(OTHER)
+  tags              String[]   @default([])
+  priceKobo         Int        @default(0) // Price in NGN kobo (e.g. ₦2,000 = 200000)
+  previewPages      Int        @default(10) // Free preview — first N pages
+  status            BookStatus @default(DRAFT)
+  totalSales        Int        @default(0)
+  avgRating         Float      @default(0)
+  reviewCount       Int        @default(0)
+  publishedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  author    User           @relation("BookAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  purchases BookPurchase[]
+  reviews   BookReview[]
+  progress  BookProgress[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([genre])
+  @@index([createdAt(sort: Desc)])
+}
+
+model BookPurchase {
+  id             String   @id @default(cuid())
+  userId         String
+  bookId         String
+  amountKobo     Int      // Full amount the buyer paid
+  platformFeeKobo Int     // 15% platform cut
+  authorPayoutKobo Int    // 85% author received
+  paystackRef    String   @unique
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+}
+
+model BookReview {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  rating    Int      // 1-5
+  content   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([bookId])
+}
+
+model BookProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  bookId      String
+  lastPage    Int      @default(1)
+  highlights  String[] @default([]) // ["page:quote", ...] — simple format for MVP
+  lastReadAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+}
+
+model Wallet {
+  id           String      @id @default(cuid())
+  userId       String      @unique
+  balanceKobo  Int         @default(0)
+  lifetimeEarningsKobo Int @default(0)
+  bankName     String?
+  bankCode     String?
+  accountNumber String?
+  accountName  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTx[]
+  payouts      PayoutRequest[]
+}
+
+model WalletTx {
+  id          String       @id @default(cuid())
+  walletId    String
+  type        WalletTxType
+  amountKobo  Int          // Always positive; `type` determines direction
+  description String?
+  reference   String?      // e.g. BookPurchase.id or PayoutRequest.id
+  createdAt   DateTime     @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model PayoutRequest {
+  id            String       @id @default(cuid())
+  walletId      String
+  amountKobo    Int
+  bankName      String
+  bankCode      String
+  accountNumber String
+  accountName   String
+  status        PayoutStatus @default(PENDING)
+  paystackTransferCode String?
+  failureReason String?
+  processedAt   DateTime?
+  createdAt     DateTime     @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([status])
 }

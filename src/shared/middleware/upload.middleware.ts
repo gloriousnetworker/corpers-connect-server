@@ -95,6 +95,45 @@ export const appealAttachmentUpload = multer({
   },
 }).single('attachment');
 
+// For e-book uploads — PDF only, up to 100 MB. Field name: "pdf"
+export const ebookUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new AppError('Only PDF files are allowed for e-books', 400));
+    }
+    cb(null, true);
+  },
+}).single('pdf');
+
+/**
+ * Upload for publishing a book: cover (image), pdf (PDF), optional backCover (image).
+ * Separate mime-type rules per field, 100 MB ceiling to cover large PDFs.
+ */
+export const bookPublishUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    if (file.fieldname === 'pdf') {
+      if (file.mimetype !== 'application/pdf') {
+        return cb(new AppError('Book PDF must be a PDF file', 400));
+      }
+    } else if (file.fieldname === 'cover' || file.fieldname === 'backCover') {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new AppError('Cover images must be image files', 400));
+      }
+    } else {
+      return cb(new AppError(`Unexpected field: ${file.fieldname}`, 400));
+    }
+    cb(null, true);
+  },
+}).fields([
+  { name: 'cover', maxCount: 1 },
+  { name: 'pdf', maxCount: 1 },
+  { name: 'backCover', maxCount: 1 },
+]);
+
 // For CV/resume uploads — PDF, DOC, DOCX, max 5 MB
 export const cvUpload = multer({
   storage: multer.memoryStorage(),

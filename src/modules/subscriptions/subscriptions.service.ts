@@ -4,6 +4,7 @@ import { paystackRequest } from '../../config/paystack';
 import { env } from '../../config/env';
 import { AppError } from '../../shared/utils/errors';
 import { PLANS, InitializeSubscriptionDto, VerifyPaymentDto } from './subscriptions.validation';
+import { booksService } from '../books/books.service';
 
 // ── Paystack response shapes ───────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ interface PaystackVerifyData {
   status: string; // 'success' | 'failed' | 'abandoned'
   reference: string;
   amount: number;
-  metadata: { userId?: string; plan?: string };
+  metadata: { userId?: string; plan?: string; type?: string; bookId?: string };
   authorization?: { authorization_code: string; email: string };
 }
 
@@ -147,7 +148,22 @@ export const subscriptionsService = {
     if (payload.event !== 'charge.success') return { received: true };
 
     const { reference, amount, metadata } = payload.data;
-    if (!metadata.userId || !metadata.plan) return { received: true };
+    if (!metadata.userId) return { received: true };
+
+    // Dispatch by payment type
+    //   - BOOK_PURCHASE → books service (credits author wallet + creates purchase)
+    //   - Otherwise default to subscription flow (legacy: plan-based)
+    if (metadata.type === 'BOOK_PURCHASE' && metadata.bookId) {
+      await booksService.completePurchase({
+        userId: metadata.userId,
+        bookId: metadata.bookId,
+        reference,
+        amountKobo: amount,
+      });
+      return { received: true };
+    }
+
+    if (!metadata.plan) return { received: true };
 
     // Idempotency: skip if already processed
     const existing = await prisma.subscription.findFirst({
