@@ -4,6 +4,7 @@ export const createPostSchema = z
   .object({
     content: z.string().max(2000, 'Post content must be 2000 characters or less').optional(),
     mediaUrls: z.array(z.string()).max(4, 'Maximum 4 media items per post').optional().default([]),
+    taggedUserIds: z.array(z.string()).max(20, 'Maximum 20 tags per post').optional().default([]),
     visibility: z.enum(['PUBLIC', 'STATE', 'FRIENDS', 'ONLY_ME']).default('PUBLIC'),
     postType: z.enum(['REGULAR', 'REEL', 'OPPORTUNITY']).default('REGULAR'),
   })
@@ -16,6 +17,7 @@ export const createPostSchema = z
 
 export const updatePostSchema = z.object({
   content: z.string().max(2000).optional(),
+  taggedUserIds: z.array(z.string()).max(20).optional(),
   visibility: z.enum(['PUBLIC', 'STATE', 'FRIENDS', 'ONLY_ME']).optional(),
 });
 

@@ -23,6 +23,29 @@ const AUTHOR_SELECT = {
   servingState: true,
 } as const;
 
+// Batch-fetch tagged users and attach to each post. Call on any list of posts
+// that carry `taggedUserIds: string[]` so the client gets name+avatar+verified
+// for each tag in one round-trip.
+export async function enrichPostsWithTaggedUsers<
+  T extends { taggedUserIds: string[] }
+>(posts: T[]): Promise<(T & { taggedUsers: Array<{ id: string; firstName: string; lastName: string; profilePicture: string | null; isVerified: boolean }> })[]> {
+  const allIds = Array.from(new Set(posts.flatMap((p) => p.taggedUserIds ?? [])));
+  if (allIds.length === 0) {
+    return posts.map((p) => ({ ...p, taggedUsers: [] }));
+  }
+  const users = await prisma.user.findMany({
+    where: { id: { in: allIds } },
+    select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true },
+  });
+  const map = new Map(users.map((u) => [u.id, u]));
+  return posts.map((p) => ({
+    ...p,
+    taggedUsers: (p.taggedUserIds ?? [])
+      .map((id) => map.get(id))
+      .filter((u): u is NonNullable<typeof u> => !!u),
+  }));
+}
+
 // Blocked IDs for a given user (both directions)
 async function getBlockedIds(userId: string): Promise<string[]> {
   const blocks = await prisma.block.findMany({
@@ -57,11 +80,17 @@ export const postsService = {
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 
   async createPost(userId: string, dto: CreatePostDto) {
+    // De-dupe and drop self-tags — a user can't meaningfully tag themselves
+    const taggedUserIds = Array.from(new Set(dto.taggedUserIds ?? [])).filter(
+      (id) => id !== userId,
+    );
+
     const post = await prisma.post.create({
       data: {
         authorId: userId,
         content: dto.content,
         mediaUrls: dto.mediaUrls ?? [],
+        taggedUserIds,
         visibility: dto.visibility as PostVisibility,
         postType: dto.postType as 'REGULAR' | 'REEL' | 'OPPORTUNITY',
       },
@@ -70,7 +99,21 @@ export const postsService = {
         _count: { select: { reactions: true, comments: true } },
       },
     });
-    return post;
+
+    // Fire-and-forget MENTION notifications for tagged users
+    for (const taggedId of taggedUserIds) {
+      void notificationsService.create({
+        recipientId: taggedId,
+        actorId: userId,
+        type: 'MENTION',
+        entityType: 'Post',
+        entityId: post.id,
+        content: 'tagged you in a post',
+      });
+    }
+
+    const [enriched] = await enrichPostsWithTaggedUsers([post]);
+    return enriched;
   },
 
   async getPost(requesterId: string | undefined, postId: string) {
@@ -118,7 +161,8 @@ export const postsService = {
         : null;
 
     const { reactions: _r, ...rest } = post as typeof post & { reactions?: unknown };
-    return { ...rest, author: safeAuthor, myReaction };
+    const [enriched] = await enrichPostsWithTaggedUsers([{ ...rest, author: safeAuthor }]);
+    return { ...enriched, myReaction };
   },
 
   async updatePost(userId: string, postId: string, dto: UpdatePostDto) {
@@ -130,10 +174,19 @@ export const postsService = {
     if (ageMs > EDIT_WINDOW_MS)
       throw new BadRequestError('Post can only be edited within 15 minutes of creation');
 
-    return prisma.post.update({
+    // Compute any newly-added tags so we can notify them
+    const nextTagged = dto.taggedUserIds
+      ? Array.from(new Set(dto.taggedUserIds)).filter((id) => id !== userId)
+      : undefined;
+    const newlyTagged = nextTagged
+      ? nextTagged.filter((id) => !post.taggedUserIds.includes(id))
+      : [];
+
+    const updated = await prisma.post.update({
       where: { id: postId },
       data: {
         ...dto,
+        ...(nextTagged && { taggedUserIds: nextTagged }),
         visibility: dto.visibility as PostVisibility | undefined,
         isEdited: true,
         editedAt: new Date(),
@@ -143,6 +196,20 @@ export const postsService = {
         _count: { select: { reactions: true, comments: true } },
       },
     });
+
+    for (const taggedId of newlyTagged) {
+      void notificationsService.create({
+        recipientId: taggedId,
+        actorId: userId,
+        type: 'MENTION',
+        entityType: 'Post',
+        entityId: postId,
+        content: 'tagged you in a post',
+      });
+    }
+
+    const [enriched] = await enrichPostsWithTaggedUsers([updated]);
+    return enriched;
   },
 
   async deletePost(userId: string, postId: string) {
@@ -215,7 +282,8 @@ export const postsService = {
 
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
-    return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
+    const enrichedItems = await enrichPostsWithTaggedUsers(items);
+    return { items: enrichedItems, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
   },
 
   async sharePost(userId: string, postId: string) {
@@ -463,8 +531,10 @@ export const postsService = {
 
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
+    const posts = items.map((b) => b.post);
+    const enrichedPosts = await enrichPostsWithTaggedUsers(posts);
     return {
-      items: items.map((b) => b.post),
+      items: enrichedPosts,
       nextCursor: hasMore ? items[items.length - 1].postId : null,
       hasMore,
     };

@@ -26,6 +26,7 @@ import subscriptionRoutes from './modules/subscriptions/subscriptions.routes';
 import adminRoutes from './modules/admin/admin.routes';
 import mediaRoutes from './modules/media/media.routes';
 import joinRequestRoutes from './modules/join-requests/join-requests.routes';
+import campExperienceRoutes from './modules/camp-experience/camp-experience.routes';
 
 const app = express();
 
@@ -119,6 +120,7 @@ app.use('/api/v1/discover', discoverRoutes);
 app.use('/api/v1/posts', postRoutes);
 app.use('/api/v1/feed', feedRoutes);
 app.use('/api/v1/stories', storyRoutes);
+app.use('/api/v1/camp-experience', campExperienceRoutes);
 app.use('/api/v1/reels', reelRoutes);
 app.use('/api/v1/conversations', messagingRoutes);
 app.use('/api/v1/notifications', notificationRoutes);

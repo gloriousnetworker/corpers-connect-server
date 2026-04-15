@@ -274,6 +274,7 @@ model User {
   highlights            StoryHighlight[]
   storyReactions        StoryReaction[]
   stories               Story[]
+  campDays              CampDayEntry[]
 
   @@index([servingState])
   @@index([email])
@@ -355,21 +356,22 @@ model AdminDepartment {
 // ─── POSTS & FEED ─────────────────────────────────────────────────────────────
 
 model Post {
-  id          String         @id @default(cuid())
-  authorId    String
-  content     String?        @db.Text
-  mediaUrls   String[]       @default([])
-  visibility  PostVisibility @default(PUBLIC)
-  postType    PostType       @default(REGULAR)
-  repostOfId  String?
-  isEdited    Boolean        @default(false)
-  editedAt    DateTime?
-  isFlagged   Boolean        @default(false)
-  isDeleted   Boolean        @default(false)
-  deletedAt   DateTime?
-  sharesCount Int            @default(0)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  authorId       String
+  content        String?        @db.Text
+  mediaUrls      String[]       @default([])
+  taggedUserIds  String[]       @default([])
+  visibility     PostVisibility @default(PUBLIC)
+  postType       PostType       @default(REGULAR)
+  repostOfId     String?
+  isEdited       Boolean        @default(false)
+  editedAt       DateTime?
+  isFlagged      Boolean        @default(false)
+  isDeleted      Boolean        @default(false)
+  deletedAt      DateTime?
+  sharesCount    Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   repostOf  Post?          @relation("Reposts", fields: [repostOfId], references: [id])
@@ -983,4 +985,50 @@ model ApprovedCorper {
   createdAt    DateTime @default(now())
 
   @@index([stateCode])
+}
+
+// ─── CAMP EXPERIENCE ──────────────────────────────────────────────────────────
+// Users document each of the 21 days of NYSC orientation camp.
+
+enum CampMood {
+  HAPPY
+  TIRED
+  EXCITED
+  HOMESICK
+  GRATEFUL
+  FUNNY
+  PROUD
+  STRESSED
+  BORED
+  INSPIRED
+}
+
+enum CampDayVisibility {
+  PRIVATE
+  FRIENDS
+  PUBLIC
+}
+
+model CampDayEntry {
+  id             String            @id @default(cuid())
+  userId         String
+  dayNumber      Int               // 1..21
+  title          String?           @db.VarChar(140)
+  story          String?           @db.Text
+  mood           CampMood?
+  mediaUrls      String[]          @default([])
+  taggedUserIds  String[]          @default([])
+  isHighlight    Boolean           @default(false)
+  visibility     CampDayVisibility @default(FRIENDS)
+  campName       String?
+  campState      String?
+  entryDate      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dayNumber])
+  @@index([userId])
+  @@index([visibility])
 }

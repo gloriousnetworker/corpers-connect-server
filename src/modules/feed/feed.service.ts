@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { NotFoundError } from '../../shared/utils/errors';
 import { PostVisibility } from '@prisma/client';
+import { enrichPostsWithTaggedUsers } from '../posts/posts.service';
 
 const DEFAULT_LIMIT = 20;
 
@@ -82,11 +83,14 @@ export const feedService = {
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
+    const shaped = items.map((p) => {
+      const { reactions, ...rest } = p;
+      return { ...rest, myReaction: reactions[0]?.reactionType ?? null };
+    });
+    const enrichedItems = await enrichPostsWithTaggedUsers(shaped);
+
     return {
-      items: items.map((p) => {
-        const { reactions, ...rest } = p;
-        return { ...rest, myReaction: reactions[0]?.reactionType ?? null };
-      }),
+      items: enrichedItems,
       nextCursor,
       hasMore,
     };
