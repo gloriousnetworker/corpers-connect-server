@@ -1318,6 +1318,86 @@ async function main() {
     }
   }
 
+  // ── Library: Seed test book ──────────────────────────────────────────────────
+  {
+    const existingBook = await prisma.book.findFirst({
+      where: { authorId: corper2.id, title: 'Blinded by Religion' },
+    });
+
+    if (existingBook) {
+      console.info('✅ Book "Blinded by Religion" already exists — skipping');
+    } else {
+      const book = await prisma.book.create({
+        data: {
+          authorId: corper2.id,
+          title: 'Blinded by Religion',
+          subtitle: 'Finding God Beyond the Veil',
+          description: [
+            'This book is for the wounded.',
+            '',
+            'For those who have been hurt by the very people who claimed to speak for God.',
+            '',
+            'For those who whispered their doubts in the dark… afraid one honest question might shatter their faith.',
+            '',
+            'Blinded by Religion confronts the empty traditions, the celebrity pastors, and the sugar-coated gospel that sells comfort instead of the Cross.',
+            '',
+            'But this is not a book of cynicism.',
+            '',
+            '"Blinded by Religion exposes the empty traditions, the celebrity pastors, the tribal walls, and the sugar-coated gospel that sells comfort instead of the Cross."',
+          ].join('\n'),
+          aboutTheAuthor: [
+            'The Unbothered is a writer, artist, and follower of Jesus who believes that honest questions are the birthplace of deeper faith.',
+            '',
+            'Born and raised in Anambra, Nigeria, The Unbothered grew up within the walls of religion before learning to see beyond them — a journey through doubt, performance, and ultimately the liberating presence of a God who refuses to fit inside human boxes.',
+            '',
+            'theunbotheredbooks',
+          ].join('\n'),
+          coverImageUrl: 'https://res.cloudinary.com/do4przxhk/image/upload/v1776322207/corpers-connect/books/covers/cb8ve3pihyww73h3eckf.png',
+          pdfUrl: 'https://res.cloudinary.com/demo/raw/upload/v1/sample.pdf',
+          genre: 'RELIGIOUS',
+          tags: ['faith', 'religion', 'christianity', 'doubt', 'spirituality'],
+          language: 'English',
+          priceKobo: 200000,
+          previewPages: 15,
+          status: 'PUBLISHED',
+          totalSales: 7,
+          avgRating: 4.5,
+          reviewCount: 3,
+          publishedAt: new Date('2026-04-10T08:00:00Z'),
+        },
+      });
+
+      // Demo purchase + review from corper1 (Iniubong)
+      await prisma.bookPurchase.upsert({
+        where: { userId_bookId: { userId: corper1.id, bookId: book.id } },
+        create: {
+          userId: corper1.id,
+          bookId: book.id,
+          amountKobo: 200000,
+          platformFeeKobo: 30000,
+          authorPayoutKobo: 170000,
+          paystackRef: `bk-demo-seed-${Date.now()}`,
+        },
+        update: {},
+      });
+
+      await prisma.bookReview.upsert({
+        where: { userId_bookId: { userId: corper1.id, bookId: book.id } },
+        create: {
+          userId: corper1.id,
+          bookId: book.id,
+          rating: 5,
+          content: 'This book hit home for me. As a corper who grew up in the church, every page felt like it was written for people like us — questioning but still believing. Must read.',
+        },
+        update: {},
+      });
+
+      console.info(`✅ Book seeded: "${book.title}" by ${corper2.firstName} ${corper2.lastName}`);
+      console.info(`   Cover: ${book.coverImageUrl}`);
+      console.info(`   Price: ₦${book.priceKobo / 100} | Genre: ${book.genre}`);
+    }
+  }
+
   // ── Summary ──────────────────────────────────────────────────────────────────
   const totalListings = await prisma.marketplaceListing.count({
     where: { sellerId: { in: [corper1.id, corper2.id] } },
@@ -1333,6 +1413,7 @@ async function main() {
   console.info(`Marketplace:    ${totalListings} total listings seeded across both sellers`);
   console.info('  Udofot\'s Mini Market   → Electronics, food, clothes, shoes, services');
   console.info('  Paschal\'s Corper Store → Electronics, housing, food, uniform, services');
+  console.info('Library:        "Blinded by Religion" by Paschal (The Unbothered) — ₦2,000');
   console.info('─────────────────────────────────────────────────────────\n');
 }
 
