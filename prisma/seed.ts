@@ -129,6 +129,100 @@ async function main() {
   });
   console.info(`✅ Official account: ${officialAccount.email}`);
 
+  // ── State-level admin + official accounts ─────────────────────────────────────
+  const NIGERIA_STATES = [
+    { name: 'Abia',       slug: 'abia',       servingState: 'Abia State',        num: '002' },
+    { name: 'Adamawa',    slug: 'adamawa',    servingState: 'Adamawa State',     num: '003' },
+    { name: 'Akwa Ibom',  slug: 'akwaibom',   servingState: 'Akwa Ibom State',   num: '004' },
+    { name: 'Anambra',    slug: 'anambra',    servingState: 'Anambra State',     num: '005' },
+    { name: 'Bauchi',     slug: 'bauchi',     servingState: 'Bauchi State',      num: '006' },
+    { name: 'Bayelsa',    slug: 'bayelsa',    servingState: 'Bayelsa State',     num: '007' },
+    { name: 'Benue',      slug: 'benue',      servingState: 'Benue State',       num: '008' },
+    { name: 'Borno',      slug: 'borno',      servingState: 'Borno State',       num: '009' },
+    { name: 'Cross River',slug: 'crossriver', servingState: 'Cross River State', num: '010' },
+    { name: 'Delta',      slug: 'delta',      servingState: 'Delta State',       num: '011' },
+    { name: 'Ebonyi',     slug: 'ebonyi',     servingState: 'Ebonyi State',      num: '012' },
+    { name: 'Edo',        slug: 'edo',        servingState: 'Edo State',         num: '013' },
+    { name: 'Ekiti',      slug: 'ekiti',      servingState: 'Ekiti State',       num: '014' },
+    { name: 'Enugu',      slug: 'enugu',      servingState: 'Enugu State',       num: '015' },
+    { name: 'Gombe',      slug: 'gombe',      servingState: 'Gombe State',       num: '016' },
+    { name: 'Imo',        slug: 'imo',        servingState: 'Imo State',         num: '017' },
+    { name: 'Jigawa',     slug: 'jigawa',     servingState: 'Jigawa State',      num: '018' },
+    { name: 'Kaduna',     slug: 'kaduna',     servingState: 'Kaduna State',      num: '019' },
+    { name: 'Kano',       slug: 'kano',       servingState: 'Kano State',        num: '020' },
+    { name: 'Katsina',    slug: 'katsina',    servingState: 'Katsina State',     num: '021' },
+    { name: 'Kebbi',      slug: 'kebbi',      servingState: 'Kebbi State',       num: '022' },
+    { name: 'Kogi',       slug: 'kogi',       servingState: 'Kogi State',        num: '023' },
+    { name: 'Kwara',      slug: 'kwara',      servingState: 'Kwara State',       num: '024' },
+    { name: 'Lagos',      slug: 'lagos',      servingState: 'Lagos State',       num: '025' },
+    { name: 'Nasarawa',   slug: 'nasarawa',   servingState: 'Nasarawa State',    num: '026' },
+    { name: 'Niger',      slug: 'niger',      servingState: 'Niger State',       num: '027' },
+    { name: 'Ogun',       slug: 'ogun',       servingState: 'Ogun State',        num: '028' },
+    { name: 'Ondo',       slug: 'ondo',       servingState: 'Ondo State',        num: '029' },
+    { name: 'Osun',       slug: 'osun',       servingState: 'Osun State',        num: '030' },
+    { name: 'Oyo',        slug: 'oyo',        servingState: 'Oyo State',         num: '031' },
+    { name: 'Plateau',    slug: 'plateau',    servingState: 'Plateau State',     num: '032' },
+    { name: 'Rivers',     slug: 'rivers',     servingState: 'Rivers State',      num: '033' },
+    { name: 'Sokoto',     slug: 'sokoto',     servingState: 'Sokoto State',      num: '034' },
+    { name: 'Taraba',     slug: 'taraba',     servingState: 'Taraba State',      num: '035' },
+    { name: 'Yobe',       slug: 'yobe',       servingState: 'Yobe State',        num: '036' },
+    { name: 'Zamfara',    slug: 'zamfara',    servingState: 'Zamfara State',     num: '037' },
+    { name: 'FCT',        slug: 'abuja',      servingState: 'Abuja (FCT)',       num: '038' },
+  ] as const;
+
+  // State admin accounts (one per state in AdminUser table)
+  for (const state of NIGERIA_STATES) {
+    await prisma.adminUser.upsert({
+      where: { email: `corpersconnectadmin@${state.slug}.ng` },
+      update: {},
+      create: {
+        email: `corpersconnectadmin@${state.slug}.ng`,
+        passwordHash: adminPassword,
+        firstName: 'CorpersConnect',
+        lastName: state.name,
+        role: 'ADMIN',
+        department: 'Technical Support',
+      },
+    });
+  }
+  console.info(`✅ ${NIGERIA_STATES.length} state admin accounts seeded`);
+
+  // State official user accounts (CC/OFFICIAL/002 … CC/OFFICIAL/038)
+  for (const state of NIGERIA_STATES) {
+    await prisma.user.upsert({
+      where: { stateCode: `CC/OFFICIAL/${state.num}` },
+      update: {
+        isVerified: true,
+        subscriptionTier: 'PREMIUM',
+        level: 'CORPER',
+        corperTag: true,
+        corperTagLabel: 'Official',
+        isOnboarded: true,
+        isFirstLogin: false,
+      },
+      create: {
+        stateCode: `CC/OFFICIAL/${state.num}`,
+        firstName: 'Corpers Connect',
+        lastName: `Official ${state.name}`,
+        email: `official.${state.slug}@corpersconnect.com.ng`,
+        passwordHash: officialPassword,
+        servingState: state.servingState,
+        lga: state.name,
+        ppa: `Corpers Connect ${state.name}`,
+        batch: '2025C',
+        isVerified: true,
+        subscriptionTier: 'PREMIUM',
+        level: 'CORPER',
+        corperTag: true,
+        corperTagLabel: 'Official',
+        bio: `The official Corpers Connect account for corps members serving in ${state.servingState}. Follow for state-specific updates, events, and community highlights.`,
+        isOnboarded: true,
+        isFirstLogin: false,
+      },
+    });
+  }
+  console.info(`✅ ${NIGERIA_STATES.length} state official accounts seeded (CC/OFFICIAL/002 – CC/OFFICIAL/038)`);
+
   // ── Mutual follows ────────────────────────────────────────────────────────────
   await prisma.follow.upsert({
     where: { followerId_followingId: { followerId: corper1.id, followingId: corper2.id } },
@@ -150,6 +244,21 @@ async function main() {
     create: { followerId: corper2.id, followingId: officialAccount.id },
     update: {},
   });
+
+  // Also follow the Kogi state official account (CC/OFFICIAL/023)
+  const kogiOfficial = await prisma.user.findUnique({ where: { stateCode: 'CC/OFFICIAL/023' } });
+  if (kogiOfficial) {
+    await prisma.follow.upsert({
+      where: { followerId_followingId: { followerId: corper1.id, followingId: kogiOfficial.id } },
+      create: { followerId: corper1.id, followingId: kogiOfficial.id },
+      update: {},
+    });
+    await prisma.follow.upsert({
+      where: { followerId_followingId: { followerId: corper2.id, followingId: kogiOfficial.id } },
+      create: { followerId: corper2.id, followingId: kogiOfficial.id },
+      update: {},
+    });
+  }
   console.info(`✅ Follows seeded`);
 
   // ── Mami Market: Seller setup for BOTH users ─────────────────────────────────

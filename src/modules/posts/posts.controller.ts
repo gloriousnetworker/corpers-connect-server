@@ -204,7 +204,7 @@ export const postsController = {
 
   async hashtagPosts(req: Request, res: Response, next: NextFunction) {
     try {
-      const { tag } = req.params;
+      const tag = p(req.params.tag);
       const { cursor, limit } = req.query;
       const data = await postsService.getHashtagPosts(
         req.user?.id,

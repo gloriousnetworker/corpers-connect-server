@@ -110,6 +110,29 @@ export const authService = {
     // Clean up Redis
     await redisHelpers.del(pendingKey);
 
+    // Auto-follow official accounts (fire-and-forget — must not break registration)
+    // 1. Main Corpers Connect Official (CC/OFFICIAL/001)
+    // 2. The state-specific official for the corper's serving state
+    prisma.user
+      .findMany({
+        where: {
+          stateCode: { startsWith: 'CC/OFFICIAL/' },
+          OR: [
+            { stateCode: 'CC/OFFICIAL/001' },
+            { servingState: user.servingState },
+          ],
+        },
+        select: { id: true },
+      })
+      .then((officials) => {
+        if (!officials.length) return;
+        return prisma.follow.createMany({
+          data: officials.map((o) => ({ followerId: user.id, followingId: o.id })),
+          skipDuplicates: true,
+        });
+      })
+      .catch((err) => console.error('[AUTH] Auto-follow failed:', err));
+
     // Send welcome email (fire-and-forget — a failed email must not break registration)
     emailService
       .sendRegistrationComplete(user.email, user.firstName)

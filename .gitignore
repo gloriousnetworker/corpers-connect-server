@@ -20,6 +20,7 @@ service-account*.json
 serviceAccount*.json
 
 # Planning & documentation (internal only)
+CREDENTIALS.md
 BACKEND_PLAN.md
 BACKEND_USER_STORY.md
 RAILWAY_ENV.md
