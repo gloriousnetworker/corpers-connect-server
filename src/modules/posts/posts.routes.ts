@@ -4,6 +4,23 @@ import { authenticate, optionalAuth } from '../auth/auth.middleware';
 
 const router = Router();
 
+// ── Trending + Hashtag (MUST be before /:postId) ─────────────────────────────
+
+/** GET /api/v1/posts/trending
+ *  Top posts from the last 48h ranked by engagement score.
+ */
+router.get('/trending', optionalAuth, postsController.trendingPosts);
+
+/** GET /api/v1/posts/trending-hashtags
+ *  Top hashtags by total usage count.
+ */
+router.get('/trending-hashtags', postsController.trendingHashtags);
+
+/** GET /api/v1/posts/hashtag/:tag?cursor=&limit=
+ *  Paginated public posts that contain the given hashtag.
+ */
+router.get('/hashtag/:tag', optionalAuth, postsController.hashtagPosts);
+
 // ── Post CRUD ─────────────────────────────────────────────────────────────────
 
 /** POST /api/v1/posts

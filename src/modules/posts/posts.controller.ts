@@ -199,4 +199,40 @@ export const postsController = {
       next(err);
     }
   },
+
+  // ── Hashtag + Trending ────────────────────────────────────────────────────────
+
+  async hashtagPosts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { tag } = req.params;
+      const { cursor, limit } = req.query;
+      const data = await postsService.getHashtagPosts(
+        req.user?.id,
+        tag,
+        cursor as string | undefined,
+        limit ? parseInt(limit as string, 10) : undefined,
+      );
+      sendSuccess(res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async trendingPosts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await postsService.getTrendingPosts(req.user?.id);
+      sendSuccess(res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async trendingHashtags(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await postsService.getTrendingHashtags();
+      sendSuccess(res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
 };

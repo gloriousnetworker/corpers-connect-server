@@ -384,10 +384,36 @@ model Post {
   reactions PostReaction[]
   comments  Comment[]
   bookmarks Bookmark[]
+  hashtags  PostHashtag[]
 
   @@index([authorId])
   @@index([createdAt(sort: Desc)])
   @@index([visibility])
+}
+
+model Hashtag {
+  id        String   @id @default(cuid())
+  tag       String   @unique
+  postCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts PostHashtag[]
+
+  @@index([postCount(sort: Desc)])
+}
+
+model PostHashtag {
+  postId    String
+  hashtagId String
+  createdAt DateTime @default(now())
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, hashtagId])
+  @@index([hashtagId])
+  @@index([postId])
 }
 
 model PostReaction {

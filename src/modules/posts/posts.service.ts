@@ -12,6 +12,40 @@ import { notificationsService } from '../notifications/notifications.service';
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const DEFAULT_LIMIT = 20;
 
+// ── Hashtag helpers ───────────────────────────────────────────────────────────
+
+function extractHashtags(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const matches = text.match(/#([a-zA-Z][a-zA-Z0-9_]{0,49})/g) ?? [];
+  return [...new Set(matches.map((m) => m.slice(1).toLowerCase()))];
+}
+
+async function syncHashtags(postId: string, content: string | null | undefined): Promise<void> {
+  const tags = extractHashtags(content);
+  if (!tags.length) return;
+
+  // Upsert each hashtag (increment counter)
+  await Promise.all(
+    tags.map((tag) =>
+      prisma.hashtag.upsert({
+        where: { tag },
+        create: { tag, postCount: 1 },
+        update: { postCount: { increment: 1 } },
+      }),
+    ),
+  );
+
+  const hashtags = await prisma.hashtag.findMany({
+    where: { tag: { in: tags } },
+    select: { id: true },
+  });
+
+  await prisma.postHashtag.createMany({
+    data: hashtags.map((h) => ({ postId, hashtagId: h.id })),
+    skipDuplicates: true,
+  });
+}
+
 const AUTHOR_SELECT = {
   id: true,
   firstName: true,
@@ -99,6 +133,9 @@ export const postsService = {
         _count: { select: { reactions: true, comments: true } },
       },
     });
+
+    // Fire-and-forget hashtag extraction
+    void syncHashtags(post.id, dto.content);
 
     // Fire-and-forget MENTION notifications for tagged users
     for (const taggedId of taggedUserIds) {
@@ -538,5 +575,108 @@ export const postsService = {
       nextCursor: hasMore ? items[items.length - 1].postId : null,
       hasMore,
     };
+  },
+
+  // ── Hashtag feed ─────────────────────────────────────────────────────────────
+
+  async getHashtagPosts(
+    requesterId: string | undefined,
+    tag: string,
+    cursor?: string,
+    limit = DEFAULT_LIMIT,
+  ) {
+    const normalised = tag.toLowerCase().replace(/^#/, '');
+    const hashtag = await prisma.hashtag.findUnique({ where: { tag: normalised } });
+    if (!hashtag) return { items: [], nextCursor: null, tag: normalised, postCount: 0 };
+
+    const blockedIds = requesterId ? await getBlockedIds(requesterId) : [];
+
+    const posts = await prisma.post.findMany({
+      where: {
+        isDeleted: false,
+        visibility: PostVisibility.PUBLIC,
+        authorId: { notIn: blockedIds },
+        hashtags: { some: { hashtagId: hashtag.id } },
+        ...(cursor ? { id: { lt: cursor } } : {}),
+      },
+      include: {
+        author: { select: AUTHOR_SELECT },
+        _count: { select: { reactions: true, comments: true } },
+        ...(requesterId
+          ? { reactions: { where: { userId: requesterId }, select: { reactionType: true } } }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+    });
+
+    const hasMore = posts.length > limit;
+    const pageItems = posts.slice(0, limit);
+
+    const enriched = await enrichPostsWithTaggedUsers(pageItems);
+    return {
+      items: enriched.map((p) => {
+        const myReaction =
+          requesterId && (p as { reactions?: { reactionType: ReactionType }[] }).reactions?.[0]
+            ? (p as { reactions: { reactionType: ReactionType }[] }).reactions[0].reactionType
+            : null;
+        const { reactions: _r, ...rest } = p as typeof p & { reactions?: unknown };
+        return { ...rest, myReaction };
+      }),
+      nextCursor: hasMore ? pageItems[pageItems.length - 1].id : null,
+      tag: normalised,
+      postCount: hashtag.postCount,
+    };
+  },
+
+  // ── Trending ─────────────────────────────────────────────────────────────────
+
+  async getTrendingPosts(requesterId: string | undefined, limit = 20) {
+    const since = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const blockedIds = requesterId ? await getBlockedIds(requesterId) : [];
+
+    const posts = await prisma.post.findMany({
+      where: {
+        isDeleted: false,
+        visibility: PostVisibility.PUBLIC,
+        createdAt: { gte: since },
+        authorId: { notIn: blockedIds },
+      },
+      include: {
+        author: { select: AUTHOR_SELECT },
+        _count: { select: { reactions: true, comments: true } },
+        ...(requesterId
+          ? { reactions: { where: { userId: requesterId }, select: { reactionType: true } } }
+          : {}),
+      },
+      take: limit * 4, // fetch more, re-rank in memory
+    });
+
+    // Score: reactions×2 + comments + shares×3; secondary sort = newest
+    posts.sort((a, b) => {
+      const scoreA = a._count.reactions * 2 + a._count.comments + a.sharesCount * 3;
+      const scoreB = b._count.reactions * 2 + b._count.comments + b.sharesCount * 3;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+
+    const enriched = await enrichPostsWithTaggedUsers(posts.slice(0, limit));
+    return enriched.map((p) => {
+      const myReaction =
+        requesterId && (p as { reactions?: { reactionType: ReactionType }[] }).reactions?.[0]
+          ? (p as { reactions: { reactionType: ReactionType }[] }).reactions[0].reactionType
+          : null;
+      const { reactions: _r, ...rest } = p as typeof p & { reactions?: unknown };
+      return { ...rest, myReaction };
+    });
+  },
+
+  async getTrendingHashtags(limit = 15) {
+    return prisma.hashtag.findMany({
+      where: { postCount: { gt: 0 } },
+      orderBy: { postCount: 'desc' },
+      take: limit,
+      select: { id: true, tag: true, postCount: true },
+    });
   },
 };
