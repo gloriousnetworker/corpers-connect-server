@@ -83,9 +83,29 @@ export const feedService = {
     const items = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
+    const postIds = items.map((p) => p.id);
+    const reactionGroups = await prisma.reaction.groupBy({
+      by: ['postId', 'reactionType'],
+      where: { postId: { in: postIds } },
+      _count: { userId: true },
+    });
+
+    const byPost = new Map<string, Array<{ type: string; count: number }>>();
+    for (const g of reactionGroups) {
+      const arr = byPost.get(g.postId) ?? [];
+      arr.push({ type: g.reactionType, count: g._count.userId });
+      byPost.set(g.postId, arr);
+    }
+
     const shaped = items.map((p) => {
       const { reactions, ...rest } = p;
-      return { ...rest, myReaction: reactions[0]?.reactionType ?? null };
+      const types = byPost.get(p.id) ?? [];
+      types.sort((a, b) => b.count - a.count);
+      return {
+        ...rest,
+        myReaction: reactions[0]?.reactionType ?? null,
+        topReactionTypes: types.slice(0, 3).map((r) => r.type),
+      };
     });
     const enrichedItems = await enrichPostsWithTaggedUsers(shaped);
 
