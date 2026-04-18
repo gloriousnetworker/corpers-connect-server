@@ -12,7 +12,7 @@ import {
 } from './posts.validation';
 import { ReactionType } from '@prisma/client';
 
-const p = (val: string | string[]) => (Array.isArray(val) ? val[0] : val);
+const p = (val: string | string[]): string => (Array.isArray(val) ? (val[0] ?? '') : val);
 
 export const postsController = {
   // ── CRUD ─────────────────────────────────────────────────────────────────────

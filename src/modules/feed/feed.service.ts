@@ -84,7 +84,7 @@ export const feedService = {
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
     const postIds = items.map((p) => p.id);
-    const reactionGroups = await prisma.reaction.groupBy({
+    const reactionGroups = await prisma.postReaction.groupBy({
       by: ['postId', 'reactionType'],
       where: { postId: { in: postIds } },
       _count: { userId: true },
