@@ -285,26 +285,33 @@ export const authService = {
   },
 
   // ── Forgot Password ──────────────────────────────────────────────────────────
-  async forgotPassword(email: string) {
-    const normalised = email.toLowerCase().trim();
-    const user = await prisma.user.findUnique({ where: { email: normalised } });
-    // Always respond the same way to prevent email enumeration
+  async forgotPassword(identifier: string) {
+    // Accept either email or state code
+    const trimmed = identifier.trim();
+    const isEmail = trimmed.includes('@');
+    const user = isEmail
+      ? await prisma.user.findUnique({ where: { email: trimmed.toLowerCase() } })
+      : await prisma.user.findFirst({ where: { stateCode: trimmed.toUpperCase() } });
+
+    // Always respond the same way to prevent enumeration
     if (!user) {
+      const dummy = isEmail ? trimmed.toLowerCase() : 'user@example.com';
       return {
-        message: `If that email is registered, a reset code has been sent.`,
-        otpToken: normalised,
-        maskedEmail: maskEmail(normalised),
+        message: `If that account exists, a reset code has been sent to its registered email.`,
+        otpToken: dummy,
+        maskedEmail: maskEmail(dummy),
       };
     }
 
     const otp = otpService.generate();
-    await otpService.store(`reset:${normalised}`, otp);
-    await emailService.sendOTP(normalised, user.firstName, otp, 'forgot-password');
+    // Key the OTP on the user's canonical email so it's unambiguous at verify time
+    await otpService.store(`reset:${user.email}`, otp);
+    await emailService.sendOTP(user.email, user.firstName, otp, 'forgot-password');
 
     return {
-      message: `Reset code sent to ${maskEmail(normalised)}`,
-      otpToken: normalised,
-      maskedEmail: maskEmail(normalised),
+      message: `Reset code sent to ${maskEmail(user.email)}`,
+      otpToken: user.email,
+      maskedEmail: maskEmail(user.email),
       ...(env.NODE_ENV === 'test' && { devOtp: otp }),
     };
   },

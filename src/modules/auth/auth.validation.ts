@@ -32,7 +32,7 @@ export const refreshSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Please provide a valid email address'),
+  identifier: z.string().min(1, 'Email or state code is required'),
 });
 
 export const resetPasswordSchema = z.object({

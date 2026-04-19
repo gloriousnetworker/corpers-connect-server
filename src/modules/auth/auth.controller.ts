@@ -175,8 +175,8 @@ export const authController = {
 
   async forgotPassword(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email } = forgotPasswordSchema.parse(req.body);
-      const data = await authService.forgotPassword(email);
+      const { identifier } = forgotPasswordSchema.parse(req.body);
+      const data = await authService.forgotPassword(identifier);
       sendSuccess(res, { otpToken: data.otpToken, maskedEmail: data.maskedEmail }, data.message);
     } catch (err) {
       next(err);
