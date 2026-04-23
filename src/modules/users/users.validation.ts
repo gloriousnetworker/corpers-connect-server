@@ -1,9 +1,26 @@
 import { z } from 'zod';
 
+/** Each social-link field is an optional bounded string. Unknown keys are ignored. */
+const socialLinksSchema = z
+  .object({
+    instagram: z.string().max(200).optional(),
+    twitter:   z.string().max(200).optional(),
+    facebook:  z.string().max(200).optional(),
+    whatsapp:  z.string().max(50).optional(),
+    linkedin:  z.string().max(200).optional(),
+    youtube:   z.string().max(200).optional(),
+    tiktok:    z.string().max(200).optional(),
+    website:   z.string().max(500).optional(),
+  })
+  .nullable()
+  .optional();
+
 export const updateMeSchema = z.object({
   bio: z.string().max(160, 'Bio must be 160 characters or less').optional(),
   corperTag: z.boolean().optional(),
   corperTagLabel: z.string().max(30, 'Tag label must be 30 characters or less').nullable().optional(),
+  socialLinks: socialLinksSchema,
+  cvUrl: z.string().url('CV URL must be a valid URL').nullable().optional(),
 });
 
 export const onboardSchema = z.object({

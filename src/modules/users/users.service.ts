@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import {
   NotFoundError,
@@ -77,9 +78,16 @@ export const usersService = {
   },
 
   async updateMe(userId: string, data: UpdateMeDto) {
+    // Prisma's JSON fields need `Prisma.JsonNull` (not raw null) to clear them,
+    // so normalise socialLinks here. cvUrl stays a plain nullable string.
+    const { socialLinks, ...rest } = data;
+    const patch: Prisma.UserUpdateInput = { ...rest };
+    if (socialLinks === null) patch.socialLinks = Prisma.JsonNull;
+    else if (socialLinks !== undefined) patch.socialLinks = socialLinks as Prisma.InputJsonValue;
+
     const updated = await prisma.user.update({
       where: { id: userId },
-      data,
+      data: patch,
     });
     return sanitiseOwnProfile(updated as unknown as Record<string, unknown>);
   },
@@ -122,6 +130,24 @@ export const usersService = {
       data: { bannerImage: imageUrl },
     });
 
+    if (oldUrl) void destroyCloudinaryAsset(oldUrl);
+
+    return sanitiseOwnProfile(updated as unknown as Record<string, unknown>);
+  },
+
+  async updateCv(userId: string, cvUrl: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { cvUrl: true },
+    });
+    const oldUrl = user?.cvUrl;
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { cvUrl },
+    });
+
+    // Destroy the old CV after successful update — fire-and-forget cleanup.
     if (oldUrl) void destroyCloudinaryAsset(oldUrl);
 
     return sanitiseOwnProfile(updated as unknown as Record<string, unknown>);

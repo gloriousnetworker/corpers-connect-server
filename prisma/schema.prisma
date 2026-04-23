@@ -235,6 +235,12 @@ model User {
   twoFactorSecret  String?
   lastSeen         DateTime?
   fcmTokens        String[]         @default([])
+  /// Optional external links shown on the user's profile. JSON blob with
+  /// keys: instagram, twitter, facebook, whatsapp, linkedin, youtube, tiktok,
+  /// website (all optional strings). Clients ignore keys they don't recognise.
+  socialLinks      Json?
+  /// Cloudinary URL of the user's uploaded CV / resume (PDF, DOC, DOCX).
+  cvUrl            String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 

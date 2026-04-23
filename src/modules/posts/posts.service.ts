@@ -266,6 +266,7 @@ export const postsService = {
     targetUserId: string,
     cursor?: string,
     limit = DEFAULT_LIMIT,
+    opts: { includeTagged?: boolean } = {},
   ) {
     const target = await prisma.user.findUnique({
       where: { id: targetUserId },
@@ -301,13 +302,26 @@ export const postsService = {
             ? [PostVisibility.PUBLIC, PostVisibility.STATE]
             : [PostVisibility.PUBLIC];
 
+    // Base filter: posts authored by this user. When includeTagged is on, also
+    // surface posts where this user is referenced in taggedUserIds — merged
+    // via Prisma's `OR` so we still hit the primary (createdAt) index.
+    const authoredFilter = { authorId: targetUserId };
+    const whereClause = opts.includeTagged
+      ? {
+          OR: [authoredFilter, { taggedUserIds: { has: targetUserId } }],
+          visibility: { in: allowedVisibilities },
+          isFlagged: false,
+          isDeleted: false,
+        }
+      : {
+          ...authoredFilter,
+          visibility: { in: allowedVisibilities },
+          isFlagged: false,
+          isDeleted: false,
+        };
+
     const rows = await prisma.post.findMany({
-      where: {
-        authorId: targetUserId,
-        visibility: { in: allowedVisibilities },
-        isFlagged: false,
-        isDeleted: false,
-      },
+      where: whereClause,
       take: limit + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy: { createdAt: 'desc' },

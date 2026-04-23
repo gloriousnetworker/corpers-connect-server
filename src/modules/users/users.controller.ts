@@ -8,7 +8,10 @@ import {
   changeEmailInitiateSchema,
   changeEmailVerifySchema,
 } from './users.validation';
-import { avatarUpload, bannerUpload, uploadToCloudinary, uploadMediaToCloudinary } from '../../shared/middleware/upload.middleware';
+import {
+  avatarUpload, bannerUpload, cvUpload,
+  uploadToCloudinary, uploadMediaToCloudinary, uploadDocumentToCloudinary,
+} from '../../shared/middleware/upload.middleware';
 import { AppError } from '../../shared/utils/errors';
 import { postsService } from '../posts/posts.service';
 import { storiesService } from '../stories/stories.service';
@@ -72,6 +75,21 @@ export const usersController = {
         const { url } = await uploadMediaToCloudinary(req.file.buffer, 'corpers_connect/banners');
         const data = await usersService.updateBanner(req.user!.id, url);
         sendSuccess(res, data, 'Banner updated');
+      } catch (uploadErr) {
+        next(uploadErr);
+      }
+    });
+  },
+
+  // CV / resume upload: PDF, DOC, or DOCX, max 5 MB, field: "cv"
+  uploadCv(req: Request, res: Response, next: NextFunction) {
+    cvUpload(req, res, async (err) => {
+      if (err) return next(err instanceof Error ? err : new AppError(String(err), 400));
+      try {
+        if (!req.file) throw new AppError('No file provided', 400);
+        const url = await uploadDocumentToCloudinary(req.file.buffer, 'corpers_connect/cvs');
+        const data = await usersService.updateCv(req.user!.id, url);
+        sendSuccess(res, data, 'CV updated');
       } catch (uploadErr) {
         next(uploadErr);
       }
@@ -194,7 +212,15 @@ export const usersController = {
   async getUserPosts(req: Request, res: Response, next: NextFunction) {
     try {
       const { cursor, limit } = paginationSchema.parse(req.query);
-      const data = await postsService.getUserPosts(req.user?.id, p(req.params.userId), cursor, limit);
+      // Optional: include posts where this user is tagged, not just ones they authored.
+      const includeTagged = req.query.includeTagged === 'true';
+      const data = await postsService.getUserPosts(
+        req.user?.id,
+        p(req.params.userId),
+        cursor,
+        limit,
+        { includeTagged },
+      );
       sendSuccess(res, data, 'Posts retrieved');
     } catch (err) {
       next(err);

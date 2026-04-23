@@ -35,6 +35,12 @@ router.post('/me/avatar', authenticate, usersController.uploadAvatar);
  */
 router.post('/me/banner', authenticate, usersController.uploadBanner);
 
+/** POST /api/v1/users/me/cv
+ *  Upload CV / resume. multipart/form-data, field name: "cv".
+ *  Accepts PDF, DOC, DOCX up to 5 MB. Returns updated profile with cvUrl set.
+ */
+router.post('/me/cv', authenticate, usersController.uploadCv);
+
 /** POST /api/v1/users/me/email/initiate
  *  Step 1 of email change: verify current password and send OTP to the new address.
  *  Body: { newEmail, currentPassword }
