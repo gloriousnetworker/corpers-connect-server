@@ -51,12 +51,19 @@ async function main() {
   }
   console.info(`✅ Author: ${paschal.firstName} ${paschal.lastName} (${paschal.id})`);
 
-  // Check if book already exists
+  // Check if book already exists — if so, update the cover if a file was provided
   const existing = await prisma.book.findFirst({
     where: { authorId: paschal.id, title: 'Blinded by Religion' },
   });
+  if (existing && process.argv[2] && fs.existsSync(process.argv[2])) {
+    console.info(`📤 Book exists — uploading new cover from: ${process.argv[2]}`);
+    const newCover = await uploadToCloudinary(path.resolve(process.argv[2]), 'corpers-connect/books/covers');
+    await prisma.book.update({ where: { id: existing.id }, data: { coverImageUrl: newCover } });
+    console.info(`✅ Cover updated: ${newCover}`);
+    return;
+  }
   if (existing) {
-    console.info('✅ Book already exists — skipping');
+    console.info('✅ Book already exists — skipping (pass a cover image path to update cover)');
     return;
   }
 
