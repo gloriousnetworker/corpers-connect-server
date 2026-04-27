@@ -43,6 +43,11 @@ router.get('/seller-applications/:appId', adminController.getSellerApplication);
 router.patch('/seller-applications/:appId/approve', adminController.approveSellerApplication);
 router.patch('/seller-applications/:appId/reject', adminController.rejectSellerApplication);
 
+// ── Marketer (NIN-verified) Applications ─────────────────────────────────────
+router.get('/marketer-applications', adminController.listMarketerApplications);
+router.patch('/marketer-applications/:userId/approve', adminController.approveMarketer);
+router.patch('/marketer-applications/:userId/reject', adminController.rejectMarketer);
+
 // ── Seller Management ────────────────────────────────────────────────────────
 router.get('/sellers', adminController.listSellers);
 router.patch('/sellers/:userId/deactivate', adminController.deactivateSeller);

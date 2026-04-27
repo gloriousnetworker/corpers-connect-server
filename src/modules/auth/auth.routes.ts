@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authController } from './auth.controller';
 import { authenticate } from './auth.middleware';
 import { authRateLimiter } from '../../shared/middleware/rateLimiter';
+import { mediaUpload } from '../../shared/middleware/upload.middleware';
 
 const router = Router();
 
@@ -24,6 +25,29 @@ router.post('/register/initiate', authRateLimiter, authController.registerInitia
  *  Creates account and returns tokens.
  */
 router.post('/register/verify', authRateLimiter, authController.registerVerify);
+
+/** POST /api/v1/auth/register/marketer/initiate
+ *  Step 1 of marketer (NIN-verified non-corper) registration.
+ *  multipart/form-data: { firstName, lastName, email, phone, nin, password,
+ *                         confirmPassword, media: <NIN photo> }
+ *  Sends OTP to the supplied email.
+ */
+router.post(
+  '/register/marketer/initiate',
+  authRateLimiter,
+  mediaUpload,
+  authController.marketerRegisterInitiate,
+);
+
+/** POST /api/v1/auth/register/marketer/verify
+ *  Step 2 of marketer registration: submit { email, otp }.
+ *  Creates account with marketerStatus=PENDING and returns tokens.
+ */
+router.post(
+  '/register/marketer/verify',
+  authRateLimiter,
+  authController.marketerRegisterVerify,
+);
 
 /** POST /api/v1/auth/login
  *  Login with email or state code + password.

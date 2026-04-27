@@ -18,6 +18,8 @@ import {
   UpsertSettingDto,
   CreateAdminDto,
   DeactivateSellerDto,
+  ListMarketerApplicationsDto,
+  RejectMarketerDto,
 } from './admin.validation';
 
 import { PLANS } from '../subscriptions/subscriptions.validation';
@@ -1123,6 +1125,105 @@ export const adminService = {
     }
 
     return message;
+  },
+
+  // ── Marketer (NIN) Applications ──────────────────────────────────────────────
+
+  async listMarketerApplications(dto: ListMarketerApplicationsDto) {
+    const limit = dto.limit ?? 20;
+
+    const items = await prisma.user.findMany({
+      where: {
+        accountType: 'MARKETER',
+        ...(dto.status ? { marketerStatus: dto.status } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(dto.cursor ? { cursor: { id: dto.cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        nin: true,
+        ninDocumentUrl: true,
+        marketerStatus: true,
+        marketerReviewedAt: true,
+        marketerRejectionReason: true,
+        createdAt: true,
+        profilePicture: true,
+      },
+    });
+
+    const hasMore = items.length > limit;
+    return { items: hasMore ? items.slice(0, limit) : items, hasMore };
+  },
+
+  async approveMarketer(userId: string, adminId: string, ipAddress?: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+    if (user.accountType !== 'MARKETER') throw new AppError('Not a marketer account', 400);
+    if (user.marketerStatus !== 'PENDING') throw new AppError('Application is not pending', 400);
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        marketerStatus: 'APPROVED',
+        marketerReviewedAt: new Date(),
+        marketerReviewedById: adminId,
+        marketerRejectionReason: null,
+        isVerified: true,
+      },
+    });
+
+    void emailService.sendMarketerApproved(user.email, user.firstName);
+
+    void notificationsService.create({
+      recipientId: user.id,
+      type: 'MARKETER_APPROVED' as never,
+      entityType: 'User',
+      entityId: user.id,
+      content: 'Your Mami Marketer account is approved! You can now create listings.',
+    });
+
+    await audit(adminId, 'MARKETER_APPROVED', { entityType: 'User', entityId: user.id, ipAddress });
+    return updated;
+  },
+
+  async rejectMarketer(
+    userId: string,
+    adminId: string,
+    dto: RejectMarketerDto,
+    ipAddress?: string,
+  ) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+    if (user.accountType !== 'MARKETER') throw new AppError('Not a marketer account', 400);
+    if (user.marketerStatus !== 'PENDING') throw new AppError('Application is not pending', 400);
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        marketerStatus: 'REJECTED',
+        marketerReviewedAt: new Date(),
+        marketerReviewedById: adminId,
+        marketerRejectionReason: dto.reason,
+      },
+    });
+
+    void emailService.sendMarketerRejected(user.email, user.firstName, dto.reason);
+
+    void notificationsService.create({
+      recipientId: user.id,
+      type: 'MARKETER_REJECTED' as never,
+      entityType: 'User',
+      entityId: user.id,
+      content: dto.reason || 'Your Mami Marketer application was not approved.',
+    });
+
+    await audit(adminId, 'MARKETER_REJECTED', { entityType: 'User', entityId: user.id, details: { reason: dto.reason }, ipAddress });
+    return updated;
   },
 };
 

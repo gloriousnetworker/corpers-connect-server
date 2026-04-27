@@ -91,7 +91,7 @@ async function getBlockedIds(userId: string): Promise<string[]> {
 
 // Check if viewer can see a post
 function canViewPost(
-  post: { authorId: string; visibility: string; author: { servingState: string } },
+  post: { authorId: string; visibility: string; author: { servingState: string | null } },
   viewerId: string | undefined,
   viewerState: string | undefined,
   followedIds: string[],
@@ -179,7 +179,7 @@ export const postsService = {
           .then((rows) => rows.map((r) => r.followingId)),
       ]);
       if (blockedIds.includes(post.authorId)) throw new NotFoundError('Post not found');
-      viewerState = viewer?.servingState;
+      viewerState = viewer?.servingState ?? undefined;
       followedIds = followed;
     }
 

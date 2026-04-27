@@ -9,6 +9,7 @@ import { otpService } from '../../shared/services/otp.service';
 import { addEmailJob } from '../../jobs';
 import { emailService } from '../../shared/services/email.service';
 import { nyscService } from '../nysc/nysc.service';
+import { uploadMediaToCloudinary } from '../../shared/middleware/upload.middleware';
 import {
   BadRequestError,
   ConflictError,
@@ -145,6 +146,133 @@ export const authService = {
       user: sanitiseUser(user),
       ...tokens,
       message: 'Account created successfully. Welcome to Corpers Connect!',
+    };
+  },
+
+  // ── Marketer Registration (NIN-verified Nigerian non-corper) ───────────────
+  // Two-step OTP flow mirroring the corper path. The picked NIN photo arrives
+  // on this request as multipart, gets uploaded to a private Cloudinary folder,
+  // and the resulting URL is stashed in Redis until OTP verification creates
+  // the user record with marketerStatus=PENDING.
+  async initiateMarketerRegistration(input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    nin: string;
+    password: string;
+    ninDocument: { buffer: Buffer; mimetype: string };
+  }) {
+    const email = input.email.toLowerCase().trim();
+    const nin   = input.nin.trim();
+    const phone = input.phone.trim();
+
+    // Hard uniqueness checks up-front so the user gets a clear error before
+    // we touch Cloudinary.
+    const [existingEmail, existingNin, existingPhone] = await Promise.all([
+      prisma.user.findUnique({ where: { email } }),
+      prisma.user.findFirst({ where: { nin } }),
+      prisma.user.findFirst({ where: { phone } }),
+    ]);
+    if (existingEmail) throw new ConflictError('An account with this email already exists. Please login instead.');
+    if (existingNin)   throw new ConflictError('This NIN is already linked to another account.');
+    if (existingPhone) throw new ConflictError('This phone number is already linked to another account.');
+
+    if (!input.ninDocument.mimetype.startsWith('image/')) {
+      throw new BadRequestError('NIN document must be an image (JPG/PNG).');
+    }
+
+    // Upload NIN photo to a marketer-only Cloudinary folder. Failure here is
+    // surfaced as a normal error — no Redis state to clean up yet.
+    const { url: ninDocumentUrl } = await uploadMediaToCloudinary(
+      input.ninDocument.buffer,
+      'corpers-connect/marketers/nin',
+    );
+
+    const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_SALT_ROUNDS);
+    const pendingKey = `pending_marketer_registration:${email}`;
+    const { redisHelpers } = await import('../../config/redis');
+    await redisHelpers.setex(
+      pendingKey,
+      600,
+      JSON.stringify({
+        firstName: input.firstName.trim(),
+        lastName: input.lastName.trim(),
+        email,
+        phone,
+        nin,
+        passwordHash,
+        ninDocumentUrl,
+      }),
+    );
+
+    const otp = otpService.generate();
+    await otpService.store(`reg-marketer:${email}`, otp);
+    await emailService.sendOTP(email, input.firstName.trim(), otp, 'registration');
+
+    return {
+      email,
+      maskedEmail: maskEmail(email),
+      message: `Verification code sent to ${maskEmail(email)}`,
+      ...(env.NODE_ENV === 'test' && { devOtp: otp }),
+    };
+  },
+
+  async verifyMarketerRegistration(
+    email: string,
+    otp: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ) {
+    const normalisedEmail = email.toLowerCase().trim();
+    const { redisHelpers } = await import('../../config/redis');
+    const pendingKey = `pending_marketer_registration:${normalisedEmail}`;
+    const pending = await redisHelpers.get(pendingKey);
+    if (!pending) {
+      throw new BadRequestError(
+        'Registration session expired. Please start registration again.',
+      );
+    }
+
+    const data = JSON.parse(pending) as {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string;
+      nin: string;
+      passwordHash: string;
+      ninDocumentUrl: string;
+    };
+
+    await otpService.verify(`reg-marketer:${normalisedEmail}`, otp);
+
+    const user = await prisma.user.create({
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        passwordHash: data.passwordHash,
+        accountType: 'MARKETER',
+        nin: data.nin,
+        ninDocumentUrl: data.ninDocumentUrl,
+        marketerStatus: 'PENDING',
+      },
+    });
+
+    await redisHelpers.del(pendingKey);
+
+    // Welcome email is fire-and-forget — a Resend hiccup must not block sign-up.
+    emailService
+      .sendMarketerWelcome(user.email, user.firstName)
+      .catch((err) => console.error('[AUTH] Marketer welcome email failed:', err));
+
+    const tokens = await createSession(user.id, user.email, 'USER', deviceInfo, ipAddress);
+
+    return {
+      user: sanitiseUser(user),
+      ...tokens,
+      message: "Account created. We'll email you the moment your NIN is verified.",
     };
   },
 

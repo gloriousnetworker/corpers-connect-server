@@ -19,6 +19,8 @@ import {
   listSellersSchema,
   updateAdminProfileSchema,
   sendAppealMessageSchema,
+  listMarketerApplicationsSchema,
+  rejectMarketerSchema,
 } from './admin.validation';
 import { ValidationError } from '../../shared/utils/errors';
 
@@ -540,6 +542,43 @@ export const adminController = {
         },
         message: 'All join requests and approved corper records have been cleared.',
       });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Marketer (NIN) Applications ──────────────────────────────────────────────
+
+  async listMarketerApplications(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = listMarketerApplicationsSchema.safeParse(req.query);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+      const result = await adminService.listMarketerApplications(parsed.data);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async approveMarketer(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = p(req.params.userId);
+      const adminId = req.user!.id;
+      const updated = await adminService.approveMarketer(userId, adminId, ip(req));
+      res.json({ success: true, data: updated, message: 'Marketer approved.' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async rejectMarketer(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = p(req.params.userId);
+      const adminId = req.user!.id;
+      const parsed = rejectMarketerSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+      const updated = await adminService.rejectMarketer(userId, adminId, parsed.data, ip(req));
+      res.json({ success: true, data: updated, message: 'Marketer rejected.' });
     } catch (err) {
       next(err);
     }

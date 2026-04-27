@@ -13,7 +13,10 @@ import {
   enable2FAVerifySchema,
   disable2FASchema,
   twoFAChallengeSchema,
+  marketerRegisterInitiateSchema,
+  marketerRegisterVerifySchema,
 } from './auth.validation';
+import { BadRequestError } from '../../shared/utils/errors';
 
 // ── Refresh token cookie helpers ───────────────────────────────────────────────
 
@@ -111,6 +114,37 @@ export const authController = {
       const ua = req.headers['user-agent'] || undefined;
       const ip = req.ip || req.socket.remoteAddress || undefined;
       const data = await authService.verifyRegistration(stateCode, otp, ua, ip);
+      const safe = setRefreshCookie(res, data as Record<string, unknown>);
+      sendCreated(res, safe, data.message);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Marketer registration (NIN-verified) ───────────────────────────────────
+  // Uses multipart/form-data so the NIN photo and the JSON-ish fields can come
+  // through together. The route registers `mediaUpload` (single 'media' file)
+  // ahead of this handler — req.file is the NIN photo, req.body holds the rest.
+  async marketerRegisterInitiate(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) throw new BadRequestError('Please upload your NIN document.');
+      const parsed = marketerRegisterInitiateSchema.parse(req.body);
+      const data = await authService.initiateMarketerRegistration({
+        ...parsed,
+        ninDocument: { buffer: req.file.buffer, mimetype: req.file.mimetype },
+      });
+      sendSuccess(res, data, data.message);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async marketerRegisterVerify(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email, otp } = marketerRegisterVerifySchema.parse(req.body);
+      const ua = req.headers['user-agent'] || undefined;
+      const ip = req.ip || req.socket.remoteAddress || undefined;
+      const data = await authService.verifyMarketerRegistration(email, otp, ua, ip);
       const safe = setRefreshCookie(res, data as Record<string, unknown>);
       sendCreated(res, safe, data.message);
     } catch (err) {

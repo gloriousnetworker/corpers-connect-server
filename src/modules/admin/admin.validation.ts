@@ -108,6 +108,18 @@ export const sendAppealMessageSchema = z.object({
   content: z.string().min(1, 'Message cannot be empty').max(2000),
 });
 
+// ── Marketer Applications (NIN review queue) ──────────────────────────────────
+
+export const listMarketerApplicationsSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+});
+
+export const rejectMarketerSchema = z.object({
+  reason: z.string().min(1, 'A reason is required').max(500),
+});
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AdminLoginDto = z.infer<typeof adminLoginSchema>;
@@ -122,6 +134,8 @@ export type UpsertSettingDto = z.infer<typeof upsertSettingSchema>;
 export type CreateAdminDto = z.infer<typeof createAdminSchema>;
 export type DeactivateSellerDto = z.infer<typeof deactivateSellerSchema>;
 export type RespondToAppealDto = z.infer<typeof respondToAppealSchema>;
+export type ListMarketerApplicationsDto = z.infer<typeof listMarketerApplicationsSchema>;
+export type RejectMarketerDto = z.infer<typeof rejectMarketerSchema>;
 export type ListSellersDto = z.infer<typeof listSellersSchema>;
 export type UpdateAdminProfileDto = z.infer<typeof updateAdminProfileSchema>;
 export type SendAppealMessageDto = z.infer<typeof sendAppealMessageSchema>;

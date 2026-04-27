@@ -60,7 +60,8 @@ export function statesInRegion(region: Region): string[] {
  * This exists because FCT is recorded as "FCT", "FCT State", or "Abuja (FCT)"
  * across different sign-up paths, so same-state queries need to OR them.
  */
-export function aliasStatesFor(state: string): string[] {
+export function aliasStatesFor(state: string | null | undefined): string[] {
+  if (!state) return [];
   const lower = state.toLowerCase();
   if (lower.includes('fct') || lower.includes('abuja')) {
     return ['FCT', 'FCT State', 'Abuja (FCT)', 'Abuja'];

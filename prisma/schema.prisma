@@ -15,6 +15,32 @@ enum UserLevel {
   CORPER
 }
 
+// Drives persona-specific routing/permissions across the app.
+// CORPER  — full access (posts, reels, stories, marketplace, etc.).
+// MARKETER — Nigerian non-corper who registers via NIN to do business on the
+//           marketplace only. Cannot post/reel/comment until they upgrade.
+enum AccountType {
+  CORPER
+  MARKETER
+}
+
+// Lifecycle of a marketer registration. Set on User.marketerStatus only when
+// accountType=MARKETER. PENDING marketers may browse + buy, but cannot list.
+enum MarketerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Lifecycle of a marketer's request to upgrade to a CORPER persona. Stored on
+// User.corperUpgradeStatus; the supporting NYSC document URL lives on
+// User.corperUpgradeDocumentUrl.
+enum CorperUpgradeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum SubscriptionTier {
   FREE
   PREMIUM
@@ -121,6 +147,10 @@ enum NotificationType {
   LISTING_COMMENT
   MARKETPLACE_MESSAGE
   LEVEL_UP
+  MARKETER_APPROVED
+  MARKETER_REJECTED
+  CORPER_UPGRADE_APPROVED
+  CORPER_UPGRADE_REJECTED
   SYSTEM
   BROADCAST
 }
@@ -157,7 +187,6 @@ enum AppealStatus {
   ACCEPTED
   REJECTED
 }
-
 
 enum ApplicationStatus {
   PENDING
@@ -198,6 +227,10 @@ enum AuditAction {
   SELLER_REINSTATED
   SELLER_REINSTATED_VIA_APPEAL
   SELLER_APPEAL_REJECTED
+  MARKETER_APPROVED
+  MARKETER_REJECTED
+  CORPER_UPGRADE_APPROVED
+  CORPER_UPGRADE_REJECTED
   BROADCAST_SENT
   SUBSCRIPTION_GRANTED
   SUBSCRIPTION_REVOKED
@@ -210,16 +243,23 @@ enum AuditAction {
 
 model User {
   id               String           @id @default(cuid())
-  stateCode        String           @unique
+  // ── NYSC identity ──────────────────────────────────────────────────────────
+  // stateCode/batch/servingState are required for CORPER accounts but stay
+  // null for MARKETER accounts that haven't upgraded yet. Postgres allows
+  // multiple NULLs in a UNIQUE column, so the @unique constraint still holds.
+  stateCode        String?          @unique
   firstName        String
   lastName         String
   email            String           @unique
+  // Not @unique at DB level — existing rows may share phone numbers or have
+  // weird imported values. The marketer registration service still rejects
+  // duplicate phones via a runtime findFirst check.
   phone            String?
   passwordHash     String
-  servingState     String
+  servingState     String?
   lga              String?
   ppa              String?
-  batch            String
+  batch            String?
   profilePicture   String?
   bannerImage      String?
   bio              String?          @db.VarChar(160)
@@ -241,55 +281,82 @@ model User {
   socialLinks      Json?
   /// Cloudinary URL of the user's uploaded CV / resume (PDF, DOC, DOCX).
   cvUrl            String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+
+  // ── Persona / Marketer fields ──────────────────────────────────────────────
+  // accountType discriminates corpers vs Nigerian marketplace-only users.
+  // Defaults to CORPER so existing rows keep their current behaviour.
+  accountType             AccountType     @default(CORPER)
+  // 11-digit Nigerian National ID — only set for MARKETER accounts. Unique so
+  // one NIN cannot back two accounts.
+  nin                     String?         @unique
+  ninDocumentUrl          String? // Cloudinary URL of uploaded NIN photo
+  marketerStatus          MarketerStatus? // null for corpers; PENDING|APPROVED|REJECTED for marketers
+  marketerReviewedAt      DateTime?
+  marketerReviewedById    String? // AdminUser.id who decided
+  marketerRejectionReason String?         @db.Text
+
+  // Marketer-to-corper upgrade request (filled when an approved marketer wants
+  // full corper privileges). Reviewed by an admin separately.
+  corperUpgradeStatus          CorperUpgradeStatus?
+  corperUpgradeDocumentUrl     String? // NYSC posting letter / ID card
+  corperUpgradeRequestedAt     DateTime?
+  corperUpgradeReviewedAt      DateTime?
+  corperUpgradeReviewedById    String?
+  corperUpgradeRejectionReason String?              @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  sessions              Session[]
-  posts                 Post[]
-  postReactions         PostReaction[]
-  comments              Comment[]
-  storyViews            StoryView[]
-  bookmarks             Bookmark[]
-  sentMessages          Message[]
-  notifications         Notification[]         @relation("recipient")
-  actorNotifications    Notification[]         @relation("actor")
-  marketplaceListings   MarketplaceListing[]
-  listingInquiries      ListingInquiry[]       @relation("ListingInquiryBuyer")
-  listingReviews        ListingReview[]        @relation("ListingReviewAuthor")
-  opportunities              Opportunity[]
-  savedOpportunities         SavedOpportunity[]
-  opportunityApplications    OpportunityApplication[]   @relation("OpportunityApplicant")
-  subscriptions         Subscription[]
-  reports               Report[]               @relation("reporter")
-  blockedUsers          Block[]                @relation("blocker")
-  blockedBy             Block[]                @relation("blocked")
-  following             Follow[]               @relation("follower")
-  followers             Follow[]               @relation("following")
+  sessions                 Session[]
+  posts                    Post[]
+  postReactions            PostReaction[]
+  comments                 Comment[]
+  storyViews               StoryView[]
+  bookmarks                Bookmark[]
+  sentMessages             Message[]
+  notifications            Notification[]            @relation("recipient")
+  actorNotifications       Notification[]            @relation("actor")
+  marketplaceListings      MarketplaceListing[]
+  listingInquiries         ListingInquiry[]          @relation("ListingInquiryBuyer")
+  listingReviews           ListingReview[]           @relation("ListingReviewAuthor")
+  opportunities            Opportunity[]
+  savedOpportunities       SavedOpportunity[]
+  opportunityApplications  OpportunityApplication[]  @relation("OpportunityApplicant")
+  subscriptions            Subscription[]
+  reports                  Report[]                  @relation("reporter")
+  blockedUsers             Block[]                   @relation("blocker")
+  blockedBy                Block[]                   @relation("blocked")
+  following                Follow[]                  @relation("follower")
+  followers                Follow[]                  @relation("following")
   conversationParticipants ConversationParticipant[]
-  messageReactions      MessageReaction[]
-  commentReactions      CommentReaction[]
-  callsAsInitiator      CallLog[]              @relation("caller")
-  callsAsReceiver       CallLog[]              @relation("receiver")
-  sellerApplication     SellerApplication?
-  sellerProfile         SellerProfile?
-  sellerAppeals         SellerAppeal[]         @relation("SellerAppeals")
-  listingComments       ListingComment[]       @relation("ListingCommentAuthor")
-  marketplaceBuyerConvs  MarketplaceConversation[] @relation("MarketplaceBuyer")
-  marketplaceSellerConvs MarketplaceConversation[] @relation("MarketplaceSeller")
-  highlights            StoryHighlight[]
-  storyReactions        StoryReaction[]
-  stories               Story[]
-  campDays              CampDayEntry[]
-  booksWritten          Book[]                   @relation("BookAuthor")
-  bookPurchases         BookPurchase[]
-  bookReviews           BookReview[]
-  bookProgress          BookProgress[]
-  wallet                Wallet?
+  messageReactions         MessageReaction[]
+  commentReactions         CommentReaction[]
+  callsAsInitiator         CallLog[]                 @relation("caller")
+  callsAsReceiver          CallLog[]                 @relation("receiver")
+  sellerApplication        SellerApplication?
+  sellerProfile            SellerProfile?
+  sellerAppeals            SellerAppeal[]            @relation("SellerAppeals")
+  listingComments          ListingComment[]          @relation("ListingCommentAuthor")
+  marketplaceBuyerConvs    MarketplaceConversation[] @relation("MarketplaceBuyer")
+  marketplaceSellerConvs   MarketplaceConversation[] @relation("MarketplaceSeller")
+  highlights               StoryHighlight[]
+  storyReactions           StoryReaction[]
+  stories                  Story[]
+  campDays                 CampDayEntry[]
+  booksWritten             Book[]                    @relation("BookAuthor")
+  bookPurchases            BookPurchase[]
+  bookReviews              BookReview[]
+  bookProgress             BookProgress[]
+  wallet                   Wallet?
+  marketerReviewer         AdminUser?                @relation("MarketerReviewer", fields: [marketerReviewedById], references: [id])
+  corperUpgradeReviewer    AdminUser?                @relation("CorperUpgradeReviewer", fields: [corperUpgradeReviewedById], references: [id])
 
   @@index([servingState])
   @@index([email])
   @@index([stateCode])
+  @@index([accountType])
+  @@index([marketerStatus])
 }
 
 model Session {
@@ -347,12 +414,14 @@ model AdminUser {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  auditLogs           AuditLog[]
-  joinRequests        JoinRequest[]
-  sellerAppeals       SellerAppeal[]    @relation("AppealDecision")
-  claimedAppeals      SellerAppeal[]    @relation("AppealClaim")
-  appealMessages      AppealMessage[]
-  createdDepartments  AdminDepartment[] @relation("DepartmentCreator")
+  auditLogs              AuditLog[]
+  joinRequests           JoinRequest[]
+  sellerAppeals          SellerAppeal[]    @relation("AppealDecision")
+  claimedAppeals         SellerAppeal[]    @relation("AppealClaim")
+  appealMessages         AppealMessage[]
+  createdDepartments     AdminDepartment[] @relation("DepartmentCreator")
+  marketerDecisions      User[]            @relation("MarketerReviewer")
+  corperUpgradeDecisions User[]            @relation("CorperUpgradeReviewer")
 }
 
 model AdminDepartment {
@@ -367,22 +436,22 @@ model AdminDepartment {
 // ─── POSTS & FEED ─────────────────────────────────────────────────────────────
 
 model Post {
-  id             String         @id @default(cuid())
-  authorId       String
-  content        String?        @db.Text
-  mediaUrls      String[]       @default([])
-  taggedUserIds  String[]       @default([])
-  visibility     PostVisibility @default(PUBLIC)
-  postType       PostType       @default(REGULAR)
-  repostOfId     String?
-  isEdited       Boolean        @default(false)
-  editedAt       DateTime?
-  isFlagged      Boolean        @default(false)
-  isDeleted      Boolean        @default(false)
-  deletedAt      DateTime?
-  sharesCount    Int            @default(0)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  authorId      String
+  content       String?        @db.Text
+  mediaUrls     String[]       @default([])
+  taggedUserIds String[]       @default([])
+  visibility    PostVisibility @default(PUBLIC)
+  postType      PostType       @default(REGULAR)
+  repostOfId    String?
+  isEdited      Boolean        @default(false)
+  editedAt      DateTime?
+  isFlagged     Boolean        @default(false)
+  isDeleted     Boolean        @default(false)
+  deletedAt     DateTime?
+  sharesCount   Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   repostOf  Post?          @relation("Reposts", fields: [repostOfId], references: [id])
@@ -597,10 +666,10 @@ model Message {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  replyTo      Message?         @relation("MessageReplies", fields: [replyToId], references: [id])
-  replies      Message[]        @relation("MessageReplies")
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]         @relation("MessageReplies")
   reads        MessageRead[]
   reactions    MessageReaction[]
 
@@ -675,10 +744,10 @@ model MarketplaceListing {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  seller                  User                      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  inquiries               ListingInquiry[]
-  reviews                 ListingReview[]
-  comments                ListingComment[]
+  seller                   User                      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  inquiries                ListingInquiry[]
+  reviews                  ListingReview[]
+  comments                 ListingComment[]
   marketplaceConversations MarketplaceConversation[]
 
   @@index([sellerId])
@@ -704,7 +773,7 @@ model ListingReview {
   id        String   @id @default(cuid())
   listingId String
   authorId  String
-  rating    Int      // 1-5
+  rating    Int // 1-5
   comment   String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -755,8 +824,8 @@ model SellerAppeal {
   adminId          String?
   adminResponse    String?      @db.Text
   respondedAt      DateTime?
-  claimedByAdminId String?      // admin currently handling this appeal
-  claimedAt        DateTime?    // when it was claimed
+  claimedByAdminId String? // admin currently handling this appeal
+  claimedAt        DateTime? // when it was claimed
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -769,14 +838,14 @@ model SellerAppeal {
 }
 
 model AppealMessage {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   appealId       String
-  content        String    @db.Text
-  senderType     String    // "SELLER" | "ADMIN"
-  adminId        String?   // set when senderType == "ADMIN"
-  attachmentUrl  String?   // optional file upload URL (Cloudinary)
-  attachmentName String?   // original filename for display
-  createdAt      DateTime  @default(now())
+  content        String   @db.Text
+  senderType     String // "SELLER" | "ADMIN"
+  adminId        String? // set when senderType == "ADMIN"
+  attachmentUrl  String? // optional file upload URL (Cloudinary)
+  attachmentName String? // original filename for display
+  createdAt      DateTime @default(now())
 
   appeal SellerAppeal @relation(fields: [appealId], references: [id], onDelete: Cascade)
   admin  AdminUser?   @relation(fields: [adminId], references: [id])
@@ -826,24 +895,24 @@ model MarketplaceConversation {
 // ─── OPPORTUNITIES ────────────────────────────────────────────────────────────
 
 model Opportunity {
-  id           String          @id @default(cuid())
-  authorId     String
-  title        String
-  description  String          @db.Text
-  type         OpportunityType @default(OTHER)
-  companyName  String
-  location     String
-  isRemote     Boolean         @default(false)
-  salary       String?
-  deadline     DateTime?
-  requirements String?         @db.Text
-  contactEmail String?
+  id             String          @id @default(cuid())
+  authorId       String
+  title          String
+  description    String          @db.Text
+  type           OpportunityType @default(OTHER)
+  companyName    String
+  location       String
+  isRemote       Boolean         @default(false)
+  salary         String?
+  deadline       DateTime?
+  requirements   String?         @db.Text
+  contactEmail   String?
   companyWebsite String?
-  isFeatured   Boolean         @default(false)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  isFeatured     Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  author       User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author       User                     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   saved        SavedOpportunity[]
   applications OpportunityApplication[]
 
@@ -892,7 +961,7 @@ model CallLog {
   agoraChannelName String?
   startedAt        DateTime?
   endedAt          DateTime?
-  duration         Int?       // seconds
+  duration         Int? // seconds
   createdAt        DateTime   @default(now())
 
   caller   User @relation("caller", fields: [callerId], references: [id], onDelete: Cascade)
@@ -905,18 +974,18 @@ model CallLog {
 // ─── SUBSCRIPTIONS ────────────────────────────────────────────────────────────
 
 model Subscription {
-  id           String             @id @default(cuid())
-  userId       String
-  tier         SubscriptionTier   @default(PREMIUM)
-  plan         String             // "MONTHLY" | "ANNUAL"
-  amountKobo   Int
-  startDate    DateTime
-  endDate      DateTime
+  id               String             @id @default(cuid())
+  userId           String
+  tier             SubscriptionTier   @default(PREMIUM)
+  plan             String // "MONTHLY" | "ANNUAL"
+  amountKobo       Int
+  startDate        DateTime
+  endDate          DateTime
   paystackRef      String?
-  paystackAuthCode String?   // stored after first charge for auto-renewal
+  paystackAuthCode String? // stored after first charge for auto-renewal
   status           SubscriptionStatus @default(ACTIVE)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -927,17 +996,17 @@ model Subscription {
 // ─── REPORTS ──────────────────────────────────────────────────────────────────
 
 model Report {
-  id             String           @id @default(cuid())
-  reporterId     String
-  entityType     ReportEntityType
-  entityId       String
-  reason         String
-  details        String?
-  status         ReportStatus     @default(PENDING)
-  reviewedBy     String?
-  reviewNote     String?
-  reviewedAt     DateTime?
-  createdAt      DateTime         @default(now())
+  id         String           @id @default(cuid())
+  reporterId String
+  entityType ReportEntityType
+  entityId   String
+  reason     String
+  details    String?
+  status     ReportStatus     @default(PENDING)
+  reviewedBy String?
+  reviewNote String?
+  reviewedAt DateTime?
+  createdAt  DateTime         @default(now())
 
   // entityType + entityId is a polymorphic reference — no FK constraint enforced
   // Query via: prisma.report.findMany({ where: { entityType: 'POST', entityId: postId } })
@@ -982,23 +1051,23 @@ enum JoinRequestStatus {
 }
 
 model JoinRequest {
-  id            String            @id @default(cuid())
-  firstName     String
-  lastName      String
-  email         String
-  phone         String?
-  stateCode     String
-  servingState  String
-  lga           String?
-  ppa           String?
-  batch         String
-  documentUrl   String            // Scanned NYSC posting letter (Cloudinary)
-  status        JoinRequestStatus @default(PENDING)
-  reviewNote    String?
-  reviewedAt    DateTime?
-  reviewedById  String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id           String            @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String
+  phone        String?
+  stateCode    String
+  servingState String
+  lga          String?
+  ppa          String?
+  batch        String
+  documentUrl  String // Scanned NYSC posting letter (Cloudinary)
+  status       JoinRequestStatus @default(PENDING)
+  reviewNote   String?
+  reviewedAt   DateTime?
+  reviewedById String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   reviewedBy AdminUser? @relation(fields: [reviewedById], references: [id])
 
@@ -1047,21 +1116,21 @@ enum CampDayVisibility {
 }
 
 model CampDayEntry {
-  id             String            @id @default(cuid())
-  userId         String
-  dayNumber      Int               // 1..21
-  title          String?           @db.VarChar(140)
-  story          String?           @db.Text
-  mood           CampMood?
-  mediaUrls      String[]          @default([])
-  taggedUserIds  String[]          @default([])
-  isHighlight    Boolean           @default(false)
-  visibility     CampDayVisibility @default(FRIENDS)
-  campName       String?
-  campState      String?
-  entryDate      DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id            String            @id @default(cuid())
+  userId        String
+  dayNumber     Int // 1..21
+  title         String?           @db.VarChar(140)
+  story         String?           @db.Text
+  mood          CampMood?
+  mediaUrls     String[]          @default([])
+  taggedUserIds String[]          @default([])
+  isHighlight   Boolean           @default(false)
+  visibility    CampDayVisibility @default(FRIENDS)
+  campName      String?
+  campState     String?
+  entryDate     DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1119,7 +1188,7 @@ model Book {
   aboutTheAuthor    String?    @db.Text
   coverImageUrl     String
   backCoverImageUrl String?
-  pdfUrl            String     // Cloudinary 'raw' URL — never served directly to non-owners
+  pdfUrl            String // Cloudinary 'raw' URL — never served directly to non-owners
   pageCount         Int?
   language          String     @default("English")
   genre             BookGenre  @default(OTHER)
@@ -1146,14 +1215,14 @@ model Book {
 }
 
 model BookPurchase {
-  id             String   @id @default(cuid())
-  userId         String
-  bookId         String
-  amountKobo     Int      // Full amount the buyer paid
-  platformFeeKobo Int     // 15% platform cut
-  authorPayoutKobo Int    // 85% author received
-  paystackRef    String   @unique
-  createdAt      DateTime @default(now())
+  id               String   @id @default(cuid())
+  userId           String
+  bookId           String
+  amountKobo       Int // Full amount the buyer paid
+  platformFeeKobo  Int // 15% platform cut
+  authorPayoutKobo Int // 85% author received
+  paystackRef      String   @unique
+  createdAt        DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -1167,7 +1236,7 @@ model BookReview {
   id        String   @id @default(cuid())
   userId    String
   bookId    String
-  rating    Int      // 1-5
+  rating    Int // 1-5
   content   String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1180,13 +1249,13 @@ model BookReview {
 }
 
 model BookProgress {
-  id          String   @id @default(cuid())
-  userId      String
-  bookId      String
-  lastPage    Int      @default(1)
-  highlights  String[] @default([]) // ["page:quote", ...] — simple format for MVP
-  lastReadAt  DateTime @default(now())
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  bookId     String
+  lastPage   Int      @default(1)
+  highlights String[] @default([]) // ["page:quote", ...] — simple format for MVP
+  lastReadAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -1196,18 +1265,18 @@ model BookProgress {
 }
 
 model Wallet {
-  id           String      @id @default(cuid())
-  userId       String      @unique
-  balanceKobo  Int         @default(0)
-  lifetimeEarningsKobo Int @default(0)
-  bankName     String?
-  bankCode     String?
-  accountNumber String?
-  accountName  String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  balanceKobo          Int      @default(0)
+  lifetimeEarningsKobo Int      @default(0)
+  bankName             String?
+  bankCode             String?
+  accountNumber        String?
+  accountName          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions WalletTx[]
   payouts      PayoutRequest[]
 }
@@ -1216,9 +1285,9 @@ model WalletTx {
   id          String       @id @default(cuid())
   walletId    String
   type        WalletTxType
-  amountKobo  Int          // Always positive; `type` determines direction
+  amountKobo  Int // Always positive; `type` determines direction
   description String?
-  reference   String?      // e.g. BookPurchase.id or PayoutRequest.id
+  reference   String? // e.g. BookPurchase.id or PayoutRequest.id
   createdAt   DateTime     @default(now())
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
@@ -1228,18 +1297,18 @@ model WalletTx {
 }
 
 model PayoutRequest {
-  id            String       @id @default(cuid())
-  walletId      String
-  amountKobo    Int
-  bankName      String
-  bankCode      String
-  accountNumber String
-  accountName   String
-  status        PayoutStatus @default(PENDING)
+  id                   String       @id @default(cuid())
+  walletId             String
+  amountKobo           Int
+  bankName             String
+  bankCode             String
+  accountNumber        String
+  accountName          String
+  status               PayoutStatus @default(PENDING)
   paystackTransferCode String?
-  failureReason String?
-  processedAt   DateTime?
-  createdAt     DateTime     @default(now())
+  failureReason        String?
+  processedAt          DateTime?
+  createdAt            DateTime     @default(now())
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 

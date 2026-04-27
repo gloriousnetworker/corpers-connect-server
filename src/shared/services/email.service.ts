@@ -478,4 +478,90 @@ export const emailService = {
     `);
     await send(to, `${sellerName} replied to their appeal`, html, 'appeal-reply');
   },
+
+  // ── Mami Marketer (NIN-verified business persona) ──────────────────────────
+
+  async sendMarketerWelcome(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">
+        Welcome to Corpers Connect! Your Mami Marketer account is set up
+        and ready to use. 🎉
+      </p>
+      <div style="background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 8px;
+                  padding: 16px 20px; margin: 20px 0;">
+        <p style="color: #9A3412; font-size: 14px; margin: 0 0 6px; font-weight: bold;">
+          One more step before you can start selling
+        </p>
+        <p style="color: #555; font-size: 14px; margin: 0;">
+          Our team is verifying the National ID document you uploaded. This usually
+          takes <strong>24–48 hours</strong>. While you wait, you can browse Mami
+          Market, message sellers, and explore the community.
+        </p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Open Corpers Connect
+        </a>
+      </div>
+      <p style="color: #888; font-size: 13px;">
+        We'll email you the moment your account is approved.
+      </p>
+    `);
+    await send(to, 'Welcome to Corpers Connect — verifying your Marketer account', html, 'marketer-welcome');
+  },
+
+  async sendMarketerApproved(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Great news! Your Mami Marketer account has been verified. ✅</p>
+      <div style="background: #f0faf4; border: 2px solid #008751; border-radius: 8px;
+                  padding: 20px; text-align: center; margin: 20px 0;">
+        <p style="color: #008751; font-size: 18px; font-weight: bold; margin: 0;">
+          You're cleared to do business on Mami Market
+        </p>
+        <p style="color: #555; font-size: 14px; margin: 8px 0 0;">
+          You can now create listings and connect with buyers across Nigeria.
+        </p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Open Mami Market
+        </a>
+      </div>
+      <p style="color: #888; font-size: 13px;">
+        Need to do more on Corpers Connect? You can later request a Corper upgrade
+        from your profile by submitting your NYSC posting letter or ID card.
+      </p>
+    `);
+    await send(to, 'Your Mami Marketer account is approved!', html, 'marketer-approved');
+  },
+
+  async sendMarketerRejected(to: string, name: string, reason: string): Promise<void> {
+    const safeName   = escapeHtml(name);
+    const safeReason = escapeHtml(reason);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">
+        We've reviewed your Mami Marketer application and we couldn't approve it
+        as submitted.
+      </p>
+      <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
+                  padding: 16px; margin: 16px 0;">
+        <p style="color: #991B1B; font-size: 14px; margin: 0;">
+          <strong>Reason:</strong> ${safeReason}
+        </p>
+      </div>
+      <p style="color: #555; font-size: 14px;">
+        You can re-upload a clearer NIN photo and resubmit your application from
+        the Corpers Connect app. If you believe this was a mistake, please reply
+        to this email or contact support.
+      </p>
+    `);
+    await send(to, 'Update on your Mami Marketer application', html, 'marketer-rejected');
+  },
 };

@@ -258,7 +258,9 @@ export const marketplaceService = {
         listingType: dto.listingType as ListingType,
         location: dto.location,
         images: imageUrls,
-        servingState: user.servingState,
+        // Marketers have no NYSC servingState; fall back to the listing's
+        // location (or a national fallback) so the @@index keeps working.
+        servingState: user.servingState ?? dto.location ?? 'Nigeria',
       },
       include: { seller: { select: SELLER_SELECT } },
     });

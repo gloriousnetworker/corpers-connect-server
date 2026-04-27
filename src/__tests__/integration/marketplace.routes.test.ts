@@ -83,7 +83,7 @@ async function createListing(sellerId: string) {
       price: 15000,
       listingType: 'FOR_SALE',
       images: ['https://cdn/img1.jpg'],
-      servingState: seller!.servingState,
+      servingState: seller!.servingState ?? 'Lagos',
       status: 'ACTIVE',
     },
   });

@@ -32,7 +32,10 @@ const PUBLIC_SELECT = {
 
 type PublicUser = {
   id: string;
-  stateCode: string;
+  // stateCode/servingState/batch are nullable on User (marketers have no NYSC
+  // identity). Discover only surfaces CORPER accounts so these are normally
+  // populated, but the type follows the DB so prisma `select` results assign.
+  stateCode: string | null;
   firstName: string;
   lastName: string;
   profilePicture: string | null;
@@ -40,17 +43,17 @@ type PublicUser = {
   level: string;
   isVerified: boolean;
   subscriptionTier: string;
-  servingState: string;
+  servingState: string | null;
   lga: string | null;
   ppa: string | null;
-  batch: string;
+  batch: string | null;
   corperTag: boolean;
   corperTagLabel: string | null;
   createdAt: Date;
 };
 
-function isOfficialCode(stateCode: string): boolean {
-  return stateCode.startsWith(OFFICIAL_STATE_CODE_PREFIX);
+function isOfficialCode(stateCode: string | null | undefined): boolean {
+  return !!stateCode && stateCode.startsWith(OFFICIAL_STATE_CODE_PREFIX);
 }
 
 /** Strip DB-only fields from the outgoing shape and attach the isOfficial flag. */
