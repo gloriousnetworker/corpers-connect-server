@@ -1177,6 +1177,21 @@ export const adminService = {
       },
     });
 
+    // Marketers don't go through SellerApplication — their NIN review is the
+    // only vetting step. Auto-create a SellerProfile with placeholder business
+    // info so they can list immediately; they edit it from their profile.
+    const existingProfile = await prisma.sellerProfile.findUnique({ where: { userId } });
+    if (!existingProfile) {
+      await prisma.sellerProfile.create({
+        data: {
+          userId,
+          businessName: `${user.firstName}'s Shop`,
+          businessDescription: 'New Mami Marketer on Corpers Connect — edit this from your profile.',
+          whatTheySell: 'Various products',
+        },
+      });
+    }
+
     void emailService.sendMarketerApproved(user.email, user.firstName);
 
     void notificationsService.create({

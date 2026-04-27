@@ -32,7 +32,31 @@ const SELLER_SELECT = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Two paths into "approved seller" status:
+ *  - CORPER: must have a SellerApplication with status=APPROVED.
+ *  - MARKETER: NIN approval (User.marketerStatus=APPROVED) is the gate. They
+ *    don't go through a separate SellerApplication — that would be a redundant
+ *    second review of the same person.
+ */
 async function assertApprovedSeller(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { accountType: true, marketerStatus: true },
+  });
+  if (!user) throw new ForbiddenError('User not found');
+
+  if (user.accountType === 'MARKETER') {
+    if (user.marketerStatus !== 'APPROVED') {
+      throw new ForbiddenError(
+        user.marketerStatus === 'PENDING'
+          ? "Your Marketer account is pending verification — you can list once we've approved your NIN."
+          : 'Your Marketer application was not approved. Please contact support.',
+      );
+    }
+    return;
+  }
+
   const app = await prisma.sellerApplication.findUnique({ where: { userId } });
   if (!app || app.status !== 'APPROVED') {
     throw new ForbiddenError('You must be an approved seller to perform this action');
@@ -40,10 +64,10 @@ async function assertApprovedSeller(userId: string) {
 }
 
 async function assertActiveSeller(userId: string) {
-  const app = await prisma.sellerApplication.findUnique({ where: { userId } });
-  if (!app || app.status !== 'APPROVED') {
-    throw new ForbiddenError('You must be an approved seller to perform this action');
-  }
+  // Reuse the persona-aware seller-approval check first (corper path requires
+  // SellerApplication; marketer path requires APPROVED marketerStatus).
+  await assertApprovedSeller(userId);
+
   const profile = await prisma.sellerProfile.findUnique({ where: { userId } });
   if (!profile || profile.sellerStatus !== 'ACTIVE') {
     throw new ForbiddenError('Your seller profile is not active');
