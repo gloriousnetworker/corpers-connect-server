@@ -1,19 +1,30 @@
 import { Router } from 'express';
 import { messagingController } from './messaging.controller';
-import { authenticate } from '../auth/auth.middleware';
+import {
+  authenticate,
+  blockMarketerFromGeneralConv,
+  restrictMarketerToMarketplaceConv,
+} from '../auth/auth.middleware';
 
 const router = Router();
 
 // All messaging routes require authentication
 router.use(authenticate);
 
+// Marketers are limited to MARKETPLACE conversations. They cannot create
+// DMs/groups (createConversation only takes DM/GROUP types — marketplace
+// conversations are spawned server-side from the marketplace flow), and they
+// cannot read/send/edit messages in non-marketplace conversations.
+router.use('/:conversationId', restrictMarketerToMarketplaceConv);
+
 // ── Conversations ─────────────────────────────────────────────────────────────
 
 /** POST /api/v1/conversations
  *  Create a DM (idempotent — returns existing if found) or GROUP conversation.
  *  Body: { type: 'DM', participantId } | { type: 'GROUP', name, participantIds[], description? }
+ *  Marketers are blocked here — they have no path to start regular DMs/groups.
  */
-router.post('/', messagingController.createConversation);
+router.post('/', blockMarketerFromGeneralConv, messagingController.createConversation);
 
 /** GET /api/v1/conversations
  *  List authenticated user's conversations (excluding archived), ordered by latest activity.

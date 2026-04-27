@@ -98,6 +98,76 @@ export const requireCorper = async (
 };
 
 /**
+ * Block marketers from creating non-marketplace conversations. Used on the
+ * `POST /conversations` endpoint where the body picks the type.
+ */
+export const blockMarketerFromGeneralConv = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) throw new UnauthorizedError();
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { accountType: true },
+    });
+    if (!user) throw new UnauthorizedError();
+    if (user.accountType !== 'MARKETER') return next();
+
+    // Marketers can only participate in MARKETPLACE conversations, which are
+    // created server-side from the marketplace flow — not via this endpoint.
+    const requestedType = (req.body?.type ?? '').toString().toUpperCase();
+    if (requestedType !== 'MARKETPLACE') {
+      throw new ForbiddenError(
+        'Marketers can only message buyers and sellers through Mami Market — not via direct messages or groups.',
+      );
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * For per-conversation routes (`/:conversationId/...`): if the requester is a
+ * marketer, ensure the target conversation is MARKETPLACE-typed. Anything
+ * else (DM, GROUP) gets a 403.
+ */
+export const restrictMarketerToMarketplaceConv = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) throw new UnauthorizedError();
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { accountType: true },
+    });
+    if (!user) throw new UnauthorizedError();
+    if (user.accountType !== 'MARKETER') return next();
+
+    const convId = (req.params.conversationId ?? '').toString();
+    if (!convId) return next(); // nothing to check; let downstream fail normally
+
+    const conv = await prisma.conversation.findUnique({
+      where: { id: convId },
+      select: { type: true },
+    });
+    if (!conv) return next(); // 404 handled downstream
+    if (conv.type !== 'MARKETPLACE') {
+      throw new ForbiddenError(
+        'This conversation is not part of Mami Market — Marketers can only message in marketplace contexts.',
+      );
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Marketplace listing guard: allows CORPER accounts and APPROVED marketers.
  * PENDING/REJECTED marketers are blocked with an actionable message.
  * Use on routes that create/edit marketplace listings.
