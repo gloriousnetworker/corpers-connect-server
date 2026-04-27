@@ -93,6 +93,104 @@ async function main() {
   });
   console.info(`✅ Corper 2: ${corper2.stateCode} — ${corper2.firstName} ${corper2.lastName}`);
 
+  // ── Dev Mami Marketers (NIN-verified, non-corper persona) ──────────────────
+  // Three accounts covering all marketer states so each UI branch is testable.
+  // Login on any of these works through the normal /login form using their
+  // email — the backend matches on email OR stateCode.
+  const marketerPassword = await bcrypt.hash('Marketer@1234', SALT_ROUNDS);
+  const marketerNinPhoto = unsplash('1554224155-6726b3ff858f', 800); // generic ID-ish image
+
+  const approvedMarketer = await prisma.user.upsert({
+    where: { email: 'approved.marketer@corpers-connect.ng' },
+    update: {
+      accountType: 'MARKETER',
+      marketerStatus: 'APPROVED',
+      isOnboarded: true,
+      isFirstLogin: false,
+    },
+    create: {
+      firstName: 'Adaeze',
+      lastName: 'Okafor',
+      email: 'approved.marketer@corpers-connect.ng',
+      phone: '08070000001',
+      passwordHash: marketerPassword,
+      accountType: 'MARKETER',
+      nin: '11111111111',
+      ninDocumentUrl: marketerNinPhoto,
+      marketerStatus: 'APPROVED',
+      marketerReviewedAt: new Date(),
+      marketerReviewedById: superAdmin.id,
+      isVerified: true,
+      isOnboarded: true,
+      isFirstLogin: false,
+    },
+  });
+
+  // Auto-create a SellerProfile so the approved marketer can list immediately —
+  // mirrors what `adminService.approveMarketer` does at runtime.
+  await prisma.sellerProfile.upsert({
+    where: { userId: approvedMarketer.id },
+    update: {},
+    create: {
+      userId: approvedMarketer.id,
+      businessName: `${approvedMarketer.firstName}'s Shop`,
+      businessDescription: 'Test Mami Marketer account — listings, chats, and the upgrade flow are all reachable from here.',
+      whatTheySell: 'Various products',
+    },
+  });
+  console.info(`✅ Marketer (approved): ${approvedMarketer.email} — Adaeze Okafor`);
+
+  const pendingMarketer = await prisma.user.upsert({
+    where: { email: 'pending.marketer@corpers-connect.ng' },
+    update: {
+      accountType: 'MARKETER',
+      marketerStatus: 'PENDING',
+      marketerReviewedAt: null,
+      marketerReviewedById: null,
+      marketerRejectionReason: null,
+    },
+    create: {
+      firstName: 'Bashir',
+      lastName: 'Yusuf',
+      email: 'pending.marketer@corpers-connect.ng',
+      phone: '08070000002',
+      passwordHash: marketerPassword,
+      accountType: 'MARKETER',
+      nin: '22222222222',
+      ninDocumentUrl: marketerNinPhoto,
+      marketerStatus: 'PENDING',
+      isOnboarded: true,
+      isFirstLogin: false,
+    },
+  });
+  console.info(`✅ Marketer (pending review):  ${pendingMarketer.email} — Bashir Yusuf`);
+
+  const rejectedMarketer = await prisma.user.upsert({
+    where: { email: 'rejected.marketer@corpers-connect.ng' },
+    update: {
+      accountType: 'MARKETER',
+      marketerStatus: 'REJECTED',
+      marketerRejectionReason: 'NIN photo was unreadable — please re-upload a clearer image.',
+    },
+    create: {
+      firstName: 'Ngozi',
+      lastName: 'Eze',
+      email: 'rejected.marketer@corpers-connect.ng',
+      phone: '08070000003',
+      passwordHash: marketerPassword,
+      accountType: 'MARKETER',
+      nin: '33333333333',
+      ninDocumentUrl: marketerNinPhoto,
+      marketerStatus: 'REJECTED',
+      marketerReviewedAt: new Date(),
+      marketerReviewedById: superAdmin.id,
+      marketerRejectionReason: 'NIN photo was unreadable — please re-upload a clearer image.',
+      isOnboarded: true,
+      isFirstLogin: false,
+    },
+  });
+  console.info(`✅ Marketer (rejected):       ${rejectedMarketer.email} — Ngozi Eze`);
+
   // ── Corpers Connect Official account ─────────────────────────────────────────
   const officialPassword = await bcrypt.hash('Admin@1234', SALT_ROUNDS);
   const officialAccount = await prisma.user.upsert({
