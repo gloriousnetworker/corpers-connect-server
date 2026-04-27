@@ -583,4 +583,41 @@ export const adminController = {
       next(err);
     }
   },
+
+  // ── Corper upgrade review ──────────────────────────────────────────────────
+
+  async listCorperUpgrades(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = listMarketerApplicationsSchema.safeParse(req.query);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+      const result = await adminService.listCorperUpgradeRequests(parsed.data);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async approveCorperUpgrade(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = p(req.params.userId);
+      const adminId = req.user!.id;
+      const updated = await adminService.approveCorperUpgrade(userId, adminId, ip(req));
+      res.json({ success: true, data: updated, message: 'Corper upgrade approved.' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async rejectCorperUpgrade(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = p(req.params.userId);
+      const adminId = req.user!.id;
+      const parsed = rejectMarketerSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+      const updated = await adminService.rejectCorperUpgrade(userId, adminId, parsed.data, ip(req));
+      res.json({ success: true, data: updated, message: 'Corper upgrade rejected.' });
+    } catch (err) {
+      next(err);
+    }
+  },
 };

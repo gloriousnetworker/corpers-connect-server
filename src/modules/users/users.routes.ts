@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { usersController } from './users.controller';
 import { authenticate, optionalAuth } from '../auth/auth.middleware';
+import { mediaUpload } from '../../shared/middleware/upload.middleware';
 
 const router = Router();
 
@@ -10,6 +11,22 @@ const router = Router();
  *  Returns the authenticated user's full profile + follow counts.
  */
 router.get('/me', authenticate, usersController.getMe);
+
+/** GET /api/v1/users/me/corper-upgrade
+ *  Returns the authenticated user's Corper upgrade status (marketers only).
+ */
+router.get('/me/corper-upgrade', authenticate, usersController.getMyCorperUpgrade);
+
+/** POST /api/v1/users/me/corper-upgrade
+ *  Approved marketers submit an NYSC posting letter / ID card to upgrade to a
+ *  Corper account. multipart/form-data: { stateCode, media: <document image> }.
+ */
+router.post(
+  '/me/corper-upgrade',
+  authenticate,
+  mediaUpload,
+  usersController.requestCorperUpgrade,
+);
 
 /** PATCH /api/v1/users/me
  *  Update bio, corperTag toggle, or corperTagLabel.

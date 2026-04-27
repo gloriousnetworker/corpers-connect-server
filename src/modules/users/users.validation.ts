@@ -57,7 +57,16 @@ export const changeEmailVerifySchema = z.object({
   otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d+$/, 'OTP must be numeric'),
 });
 
+export const requestCorperUpgradeSchema = z.object({
+  // NYSC state codes look like: AB/24A/1234.
+  stateCode: z
+    .string()
+    .min(1, 'State code is required')
+    .regex(/^[A-Z]{2}\/\d{2}[A-C]\/\d{3,5}$/i, 'Invalid format. Use the full code, e.g. LA/24A/1234'),
+});
+
 export type UpdateMeDto = z.infer<typeof updateMeSchema>;
 export type OnboardDto = z.infer<typeof onboardSchema>;
 export type ChangeEmailInitiateDto = z.infer<typeof changeEmailInitiateSchema>;
 export type ChangeEmailVerifyDto = z.infer<typeof changeEmailVerifySchema>;
+export type RequestCorperUpgradeDto = z.infer<typeof requestCorperUpgradeSchema>;

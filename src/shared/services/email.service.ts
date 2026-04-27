@@ -541,6 +541,56 @@ export const emailService = {
     await send(to, 'Your Mami Marketer account is approved!', html, 'marketer-approved');
   },
 
+  async sendCorperUpgradeApproved(to: string, name: string): Promise<void> {
+    const safeName = escapeHtml(name);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">Your Corper upgrade has been approved. ✅</p>
+      <div style="background: #f0faf4; border: 2px solid #008751; border-radius: 8px;
+                  padding: 20px; text-align: center; margin: 20px 0;">
+        <p style="color: #008751; font-size: 18px; font-weight: bold; margin: 0;">
+          You're now a verified Corper
+        </p>
+        <p style="color: #555; font-size: 14px; margin: 8px 0 0;">
+          Your account has been upgraded with full Corpers Connect access — posts,
+          stories, reels, and the corper community are unlocked alongside your
+          existing Mami Market shop.
+        </p>
+      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${env.CLIENT_URL}" style="display: inline-block; background: #008751; color: white;
+           padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px;">
+          Open Corpers Connect
+        </a>
+      </div>
+    `);
+    await send(to, "You're now a verified Corper on Corpers Connect", html, 'corper-upgrade-approved');
+  },
+
+  async sendCorperUpgradeRejected(to: string, name: string, reason: string): Promise<void> {
+    const safeName   = escapeHtml(name);
+    const safeReason = escapeHtml(reason);
+    const html = emailShell(`
+      <p style="color: #333; font-size: 16px;">Hello <strong>${safeName}</strong>,</p>
+      <p style="color: #555;">
+        We've reviewed your request to upgrade to a Corper account and we couldn't
+        approve it as submitted.
+      </p>
+      <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
+                  padding: 16px; margin: 16px 0;">
+        <p style="color: #991B1B; font-size: 14px; margin: 0;">
+          <strong>Reason:</strong> ${safeReason}
+        </p>
+      </div>
+      <p style="color: #555; font-size: 14px;">
+        Your Mami Marketer account is unchanged — you can keep using Mami Market.
+        You're welcome to re-submit your Corper upgrade with a clearer NYSC posting
+        letter or ID card from your profile.
+      </p>
+    `);
+    await send(to, 'Update on your Corper upgrade request', html, 'corper-upgrade-rejected');
+  },
+
   async sendMarketerRejected(to: string, name: string, reason: string): Promise<void> {
     const safeName   = escapeHtml(name);
     const safeReason = escapeHtml(reason);

@@ -299,6 +299,10 @@ model User {
   // full corper privileges). Reviewed by an admin separately.
   corperUpgradeStatus          CorperUpgradeStatus?
   corperUpgradeDocumentUrl     String? // NYSC posting letter / ID card
+  // The state code the marketer claims at request time. We validate it
+  // against NYSC at submission, and on admin approval we use it to fill in
+  // the corper-only fields (servingState, batch, etc.) from the NYSC record.
+  corperUpgradeRequestedStateCode String?
   corperUpgradeRequestedAt     DateTime?
   corperUpgradeReviewedAt      DateTime?
   corperUpgradeReviewedById    String?

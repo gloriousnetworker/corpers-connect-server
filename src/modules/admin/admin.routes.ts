@@ -48,6 +48,11 @@ router.get('/marketer-applications', adminController.listMarketerApplications);
 router.patch('/marketer-applications/:userId/approve', adminController.approveMarketer);
 router.patch('/marketer-applications/:userId/reject', adminController.rejectMarketer);
 
+// ── Corper Upgrade Requests (marketers asking for full corper privileges) ───
+router.get('/corper-upgrade-requests', adminController.listCorperUpgrades);
+router.patch('/corper-upgrade-requests/:userId/approve', adminController.approveCorperUpgrade);
+router.patch('/corper-upgrade-requests/:userId/reject', adminController.rejectCorperUpgrade);
+
 // ── Seller Management ────────────────────────────────────────────────────────
 router.get('/sellers', adminController.listSellers);
 router.patch('/sellers/:userId/deactivate', adminController.deactivateSeller);

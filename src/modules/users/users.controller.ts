@@ -7,6 +7,7 @@ import {
   paginationSchema,
   changeEmailInitiateSchema,
   changeEmailVerifySchema,
+  requestCorperUpgradeSchema,
 } from './users.validation';
 import {
   avatarUpload, bannerUpload, cvUpload,
@@ -278,6 +279,31 @@ export const usersController = {
     try {
       await usersService.deleteAccount(req.user!.id);
       sendSuccess(res, null, 'Account deleted');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Corper upgrade ──────────────────────────────────────────────────────────
+
+  async getMyCorperUpgrade(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await usersService.getMyCorperUpgrade(req.user!.id);
+      sendSuccess(res, data, 'Upgrade status retrieved');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async requestCorperUpgrade(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) throw new AppError('Please upload your NYSC document.', 400);
+      const { stateCode } = requestCorperUpgradeSchema.parse(req.body);
+      const data = await usersService.requestCorperUpgrade(req.user!.id, {
+        stateCode,
+        document: { buffer: req.file.buffer, mimetype: req.file.mimetype },
+      });
+      sendSuccess(res, data, "Upgrade request submitted — we'll review it within 24-48h.");
     } catch (err) {
       next(err);
     }

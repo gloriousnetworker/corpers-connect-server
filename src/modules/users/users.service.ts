@@ -5,12 +5,17 @@ import {
   NotFoundError,
   BadRequestError,
   ForbiddenError,
+  ConflictError,
 } from '../../shared/utils/errors';
 import type { UpdateMeDto, OnboardDto, ChangeEmailInitiateDto } from './users.validation';
 import { otpService } from '../../shared/services/otp.service';
 import { addEmailJob } from '../../jobs';
-import { destroyCloudinaryAsset } from '../../shared/middleware/upload.middleware';
+import {
+  destroyCloudinaryAsset,
+  uploadMediaToCloudinary,
+} from '../../shared/middleware/upload.middleware';
 import { notificationsService } from '../notifications/notifications.service';
+import { nyscService } from '../nysc/nysc.service';
 
 const DEFAULT_LIMIT = 20;
 
@@ -494,6 +499,97 @@ export const usersService = {
 
     // Clean up Cloudinary assets after successful soft-delete (fire-and-forget)
     if (user.profilePicture) void destroyCloudinaryAsset(user.profilePicture);
+  },
+
+  // ── Corper upgrade ──────────────────────────────────────────────────────────
+  // Approved marketers can request a corper-persona upgrade by submitting an
+  // NYSC posting letter / ID card. The request lands in an admin queue that
+  // reviews it and either flips the user's accountType or returns it.
+
+  async getMyCorperUpgrade(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        accountType: true,
+        marketerStatus: true,
+        corperUpgradeStatus: true,
+        corperUpgradeDocumentUrl: true,
+        corperUpgradeRequestedStateCode: true,
+        corperUpgradeRequestedAt: true,
+        corperUpgradeReviewedAt: true,
+        corperUpgradeRejectionReason: true,
+      },
+    });
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
+
+  async requestCorperUpgrade(
+    userId: string,
+    input: {
+      stateCode: string;
+      document: { buffer: Buffer; mimetype: string };
+    },
+  ) {
+    const me = await prisma.user.findUnique({ where: { id: userId } });
+    if (!me) throw new NotFoundError('User not found');
+
+    if (me.accountType !== 'MARKETER') {
+      throw new BadRequestError('Only Marketer accounts can request a Corper upgrade.');
+    }
+    if (me.marketerStatus !== 'APPROVED') {
+      throw new ForbiddenError(
+        'Your Marketer account must be approved before you can request a Corper upgrade.',
+      );
+    }
+    if (me.corperUpgradeStatus === 'PENDING') {
+      throw new ConflictError('You already have a pending Corper upgrade request.');
+    }
+    if (me.corperUpgradeStatus === 'APPROVED') {
+      throw new ConflictError('Your account is already a Corper.');
+    }
+
+    if (!input.document.mimetype.startsWith('image/')) {
+      throw new BadRequestError('Document must be an image (JPG/PNG).');
+    }
+
+    const normalised = input.stateCode.toUpperCase().trim();
+
+    // Validate the state code exists in NYSC records — fails fast if the user
+    // mistyped, so the admin queue stays clean.
+    await nyscService.getCorperByStateCode(normalised);
+
+    // Reject if the state code is already registered to another User.
+    const existing = await prisma.user.findUnique({ where: { stateCode: normalised } });
+    if (existing && existing.id !== userId) {
+      throw new ConflictError('This state code is already linked to another account.');
+    }
+
+    const { url: documentUrl } = await uploadMediaToCloudinary(
+      input.document.buffer,
+      'corpers-connect/marketers/corper-upgrade',
+    );
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        corperUpgradeStatus: 'PENDING',
+        corperUpgradeDocumentUrl: documentUrl,
+        corperUpgradeRequestedStateCode: normalised,
+        corperUpgradeRequestedAt: new Date(),
+        corperUpgradeReviewedAt: null,
+        corperUpgradeReviewedById: null,
+        corperUpgradeRejectionReason: null,
+      },
+      select: {
+        corperUpgradeStatus: true,
+        corperUpgradeDocumentUrl: true,
+        corperUpgradeRequestedStateCode: true,
+        corperUpgradeRequestedAt: true,
+      },
+    });
+
+    return updated;
   },
 };
 

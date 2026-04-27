@@ -25,6 +25,7 @@ import {
 import { PLANS } from '../subscriptions/subscriptions.validation';
 import { emailService } from '../../shared/services/email.service';
 import { notificationsService } from '../notifications/notifications.service';
+import { nyscService } from '../nysc/nysc.service';
 
 // ── Internal audit helper ──────────────────────────────────────────────────────
 
@@ -1238,6 +1239,150 @@ export const adminService = {
     });
 
     await audit(adminId, 'MARKETER_REJECTED', { entityType: 'User', entityId: user.id, details: { reason: dto.reason }, ipAddress });
+    return updated;
+  },
+
+  // ── Corper Upgrade Requests ───────────────────────────────────────────────
+
+  async listCorperUpgradeRequests(dto: ListMarketerApplicationsDto) {
+    // Reuses the marketer-applications list shape since the table on the
+    // admin side is the same — User rows scoped by status.
+    const limit = dto.limit ?? 20;
+
+    const items = await prisma.user.findMany({
+      where: {
+        ...(dto.status ? { corperUpgradeStatus: dto.status } : { corperUpgradeStatus: { not: null } }),
+      },
+      orderBy: { corperUpgradeRequestedAt: 'desc' },
+      take: limit + 1,
+      ...(dto.cursor ? { cursor: { id: dto.cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        accountType: true,
+        marketerStatus: true,
+        corperUpgradeStatus: true,
+        corperUpgradeDocumentUrl: true,
+        corperUpgradeRequestedStateCode: true,
+        corperUpgradeRequestedAt: true,
+        corperUpgradeReviewedAt: true,
+        corperUpgradeRejectionReason: true,
+        profilePicture: true,
+        createdAt: true,
+      },
+    });
+
+    const hasMore = items.length > limit;
+    return { items: hasMore ? items.slice(0, limit) : items, hasMore };
+  },
+
+  async approveCorperUpgrade(userId: string, adminId: string, ipAddress?: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+    if (user.corperUpgradeStatus !== 'PENDING') {
+      throw new AppError('Upgrade request is not pending', 400);
+    }
+    const stateCode = user.corperUpgradeRequestedStateCode;
+    if (!stateCode) {
+      // Should be impossible — request always sets it — but handle defensively.
+      throw new AppError('Upgrade request is missing the requested state code', 500);
+    }
+
+    // Final guard against a race where another user registered this state
+    // code between request and approval.
+    const collision = await prisma.user.findUnique({ where: { stateCode } });
+    if (collision && collision.id !== userId) {
+      throw new AppError(
+        'This state code is now linked to another account; cannot approve this upgrade.',
+        409,
+      );
+    }
+
+    // Pull the canonical NYSC record so we fill servingState/lga/ppa/batch
+    // rather than trusting whatever the marketer typed.
+    const corper = await nyscService.getCorperByStateCode(stateCode);
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        accountType: 'CORPER',
+        stateCode,
+        servingState: corper.servingState,
+        lga: corper.lga ?? null,
+        ppa: corper.ppa ?? null,
+        batch: corper.batch,
+        // Keep the marketer's existing email/phone — those are what they log
+        // in with. Don't overwrite with NYSC contact info.
+        corperUpgradeStatus: 'APPROVED',
+        corperUpgradeReviewedAt: new Date(),
+        corperUpgradeReviewedById: adminId,
+        corperUpgradeRejectionReason: null,
+        // Marketer lifecycle is closed; the user is no longer a marketer.
+        marketerStatus: null,
+        isVerified: true,
+      },
+    });
+
+    void emailService.sendCorperUpgradeApproved(user.email, user.firstName);
+
+    void notificationsService.create({
+      recipientId: user.id,
+      type: 'CORPER_UPGRADE_APPROVED' as never,
+      entityType: 'User',
+      entityId: user.id,
+      content: "You're now a verified Corper! Posts, stories, and reels are unlocked.",
+    });
+
+    await audit(adminId, 'CORPER_UPGRADE_APPROVED', {
+      entityType: 'User',
+      entityId: user.id,
+      details: { stateCode },
+      ipAddress,
+    });
+    return updated;
+  },
+
+  async rejectCorperUpgrade(
+    userId: string,
+    adminId: string,
+    dto: RejectMarketerDto,
+    ipAddress?: string,
+  ) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+    if (user.corperUpgradeStatus !== 'PENDING') {
+      throw new AppError('Upgrade request is not pending', 400);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        corperUpgradeStatus: 'REJECTED',
+        corperUpgradeReviewedAt: new Date(),
+        corperUpgradeReviewedById: adminId,
+        corperUpgradeRejectionReason: dto.reason,
+      },
+    });
+
+    void emailService.sendCorperUpgradeRejected(user.email, user.firstName, dto.reason);
+
+    void notificationsService.create({
+      recipientId: user.id,
+      type: 'CORPER_UPGRADE_REJECTED' as never,
+      entityType: 'User',
+      entityId: user.id,
+      content: dto.reason || 'Your Corper upgrade request was not approved.',
+    });
+
+    await audit(adminId, 'CORPER_UPGRADE_REJECTED', {
+      entityType: 'User',
+      entityId: user.id,
+      details: { reason: dto.reason },
+      ipAddress,
+    });
     return updated;
   },
 };
