@@ -31,7 +31,10 @@ function sanitiseOwnProfile(user: Record<string, unknown>) {
   return safe;
 }
 
-// Fields visible on a public profile (hides contact info + internal flags)
+// Fields visible on a public profile (hides contact info + internal flags).
+// We keep `accountType` so other users can see the B2B marketer badge, but
+// strip the marketer/corper-upgrade review trails — those are between the
+// user and the admin reviewer, not for public consumption.
 function sanitisePublicProfile(user: Record<string, unknown>) {
   const {
     passwordHash: _ph,
@@ -43,6 +46,17 @@ function sanitisePublicProfile(user: Record<string, unknown>) {
     isFirstLogin: _fl,
     isOnboarded: _ob,
     twoFactorEnabled: _tfe,
+    nin: _nin,
+    ninDocumentUrl: _ninDoc,
+    marketerRejectionReason: _mrr,
+    marketerReviewedById: _mrid,
+    corperUpgradeStatus: _cus,
+    corperUpgradeDocumentUrl: _cud,
+    corperUpgradeRequestedStateCode: _cusc,
+    corperUpgradeRequestedAt: _cra,
+    corperUpgradeReviewedAt: _crat,
+    corperUpgradeReviewedById: _crid,
+    corperUpgradeRejectionReason: _crr,
     ...safe
   } = user;
   return safe;

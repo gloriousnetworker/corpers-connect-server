@@ -27,6 +27,8 @@ const PUBLIC_SELECT = {
   batch: true,
   corperTag: true,
   corperTagLabel: true,
+  // Drives the "B2B" marketer badge wherever a user identity is rendered.
+  accountType: true,
   createdAt: true,
 } as const;
 
@@ -42,6 +44,7 @@ type PublicUser = {
   bio: string | null;
   level: string;
   isVerified: boolean;
+  accountType: 'CORPER' | 'MARKETER';
   subscriptionTier: string;
   servingState: string | null;
   lga: string | null;

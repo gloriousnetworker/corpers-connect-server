@@ -21,6 +21,9 @@ const SENDER_SELECT = {
   profilePicture: true,
   isVerified: true,
   lastSeen: true,
+  // Drives the "B2B" badge in marketplace chats so corpers can tell at
+  // a glance who is a marketer.
+  accountType: true,
 } as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

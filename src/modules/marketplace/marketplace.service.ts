@@ -28,6 +28,10 @@ const SELLER_SELECT = {
   profilePicture: true,
   isVerified: true,
   servingState: true,
+  // Drives the "B2B" badge on listings, profiles, marketplace chats —
+  // anything that surfaces a seller identity needs to know whether they're
+  // a Mami Marketer or a corper.
+  accountType: true,
 } as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -457,7 +461,7 @@ export const marketplaceService = {
       orderBy: { createdAt: 'desc' },
       include: {
         buyer: {
-          select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true },
+          select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true, accountType: true },
         },
       },
     });
@@ -482,7 +486,7 @@ export const marketplaceService = {
     return prisma.listingReview.create({
       data: { listingId, authorId: userId, rating: dto.rating, comment: dto.comment },
       include: {
-        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true, accountType: true } },
       },
     });
   },
@@ -498,7 +502,7 @@ export const marketplaceService = {
       ...(dto.cursor && { cursor: { id: dto.cursor }, skip: 1 }),
       orderBy: { createdAt: 'desc' },
       include: {
-        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true, accountType: true } },
       },
     });
 
@@ -550,7 +554,7 @@ export const marketplaceService = {
         parentId: dto.parentId,
       },
       include: {
-        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true, accountType: true } },
       },
     });
 
@@ -585,7 +589,7 @@ export const marketplaceService = {
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy: { createdAt: 'desc' },
       include: {
-        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true, accountType: true } },
         _count: { select: { replies: true } },
       },
     });
@@ -609,7 +613,7 @@ export const marketplaceService = {
         isEdited: true,
       },
       include: {
-        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+        author: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true, accountType: true } },
       },
     });
   },
@@ -659,14 +663,14 @@ export const marketplaceService = {
           include: {
             participants: {
               include: {
-                user: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+                user: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
               },
             },
           },
         },
         listing: { select: { id: true, title: true, images: true, price: true, status: true } },
-        buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
-        seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
+        seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
       },
     });
     if (existing) return existing;
@@ -698,14 +702,14 @@ export const marketplaceService = {
             include: {
               participants: {
                 include: {
-                  user: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+                  user: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
                 },
               },
             },
           },
           listing: { select: { id: true, title: true, images: true, price: true, status: true } },
-          buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
-          seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+          buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
+          seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
         },
       });
 
@@ -744,13 +748,13 @@ export const marketplaceService = {
             },
             participants: {
               include: {
-                user: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+                user: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
               },
             },
           },
         },
-        buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
-        seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
+        seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
       },
     });
 
@@ -768,13 +772,13 @@ export const marketplaceService = {
           include: {
             participants: {
               include: {
-                user: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true } },
+                user: { select: { id: true, firstName: true, lastName: true, profilePicture: true, isVerified: true, accountType: true } },
               },
             },
           },
         },
-        buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
-        seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true } },
+        buyer: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
+        seller: { select: { id: true, firstName: true, lastName: true, profilePicture: true, accountType: true } },
       },
     });
 
