@@ -25,4 +25,7 @@ router.post('/:opportunityId/apply', opportunitiesController.applyToOpportunity)
 router.get('/:opportunityId/applications', opportunitiesController.getApplications);
 router.patch('/applications/:applicationId/status', opportunitiesController.updateApplicationStatus);
 
+// ── Report ────────────────────────────────────────────────────────────────────
+router.post('/:opportunityId/report', opportunitiesController.reportOpportunity);
+
 export default router;

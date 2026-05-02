@@ -7,6 +7,8 @@ import {
   applyToOpportunitySchema,
   updateApplicationStatusSchema,
   listApplicationsSchema,
+  reportOpportunitySchema,
+  verifyOpportunitySchema,
 } from './opportunities.validation';
 import { uploadDocumentToCloudinary, cvUpload } from '../../shared/middleware/upload.middleware';
 import { AppError, ValidationError } from '../../shared/utils/errors';
@@ -204,6 +206,58 @@ export const opportunitiesController = {
         parsed.data,
       );
       res.json({ status: 'success', data: application });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Report an Opportunity ─────────────────────────────────────────────────
+
+  async reportOpportunity(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = reportOpportunitySchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+
+      await opportunitiesService.reportOpportunity(
+        req.user!.id,
+        p(req.params.opportunityId),
+        parsed.data,
+      );
+      res.status(201).json({ status: 'success', data: null, message: 'Report submitted' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Admin: Verify / Un-verify an Opportunity ──────────────────────────────
+
+  async setOpportunityVerification(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = verifyOpportunitySchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+
+      // req.user.id is the admin's id (admin auth middleware populates the
+      // same req.user the user-side middleware does).
+      const opportunity = await opportunitiesService.setOpportunityVerification(
+        p(req.params.opportunityId),
+        req.user!.id,
+        parsed.data.verified,
+      );
+      res.json({ status: 'success', data: opportunity });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Admin: List Pending Verification Queue ────────────────────────────────
+
+  async listPendingVerification(req: Request, res: Response, next: NextFunction) {
+    try {
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+      const result = await opportunitiesService.listPendingVerification({ cursor, limit });
+      res.json({ status: 'success', data: result });
     } catch (err) {
       next(err);
     }

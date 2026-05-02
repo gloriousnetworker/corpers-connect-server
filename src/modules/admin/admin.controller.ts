@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction, CookieOptions } from 'express';
 import { adminService } from './admin.service';
+import { opportunitiesService } from '../opportunities/opportunities.service';
+import { verifyOpportunitySchema } from '../opportunities/opportunities.validation';
 import { env } from '../../config/env';
 import { jwtService } from '../../shared/services/jwt.service';
 import { UnauthorizedError } from '../../shared/utils/errors';
@@ -616,6 +618,40 @@ export const adminController = {
       if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
       const updated = await adminService.rejectCorperUpgrade(userId, adminId, parsed.data, ip(req));
       res.json({ success: true, data: updated, message: 'Corper upgrade rejected.' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Opportunities Moderation ──────────────────────────────────────────────
+
+  async listPendingOpportunities(req: Request, res: Response, next: NextFunction) {
+    try {
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+      const result = await opportunitiesService.listPendingVerification({ cursor, limit });
+      res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async setOpportunityVerification(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = verifyOpportunitySchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.errors[0].message);
+
+      const opportunity = await opportunitiesService.setOpportunityVerification(
+        p(req.params.opportunityId),
+        req.user!.id,
+        parsed.data.verified,
+      );
+      res.json({
+        success: true,
+        data: opportunity,
+        message: parsed.data.verified ? 'Opportunity verified.' : 'Verification revoked.',
+      });
     } catch (err) {
       next(err);
     }

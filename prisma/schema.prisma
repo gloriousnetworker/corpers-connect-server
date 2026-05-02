@@ -169,6 +169,7 @@ enum ReportEntityType {
   LISTING
   USER
   COMMENT
+  OPPORTUNITY
 }
 
 enum SellerApplicationStatus {
@@ -201,7 +202,26 @@ enum OpportunityType {
   INTERNSHIP
   VOLUNTEER
   CONTRACT
+  GIG
   OTHER
+}
+
+/**
+ * How an opportunity pays. Helps corpers filter by income style:
+ * FIXED       → one-off project fee (e.g. ₦80k for a logo)
+ * HOURLY      → paid per hour (e.g. ₦2k/hr remote work)
+ * DAILY       → paid per day (e.g. ushering / POS / event work)
+ * COMMISSION  → percentage of sales (e.g. sales reps)
+ * SALARY      → monthly salary (full-time roles)
+ * UNPAID      → volunteer / experience only
+ */
+enum PayModel {
+  FIXED
+  HOURLY
+  DAILY
+  COMMISSION
+  SALARY
+  UNPAID
 }
 
 enum SubscriptionStatus {
@@ -297,16 +317,16 @@ model User {
 
   // Marketer-to-corper upgrade request (filled when an approved marketer wants
   // full corper privileges). Reviewed by an admin separately.
-  corperUpgradeStatus          CorperUpgradeStatus?
-  corperUpgradeDocumentUrl     String? // NYSC posting letter / ID card
+  corperUpgradeStatus             CorperUpgradeStatus?
+  corperUpgradeDocumentUrl        String? // NYSC posting letter / ID card
   // The state code the marketer claims at request time. We validate it
   // against NYSC at submission, and on admin approval we use it to fill in
   // the corper-only fields (servingState, batch, etc.) from the NYSC record.
   corperUpgradeRequestedStateCode String?
-  corperUpgradeRequestedAt     DateTime?
-  corperUpgradeReviewedAt      DateTime?
-  corperUpgradeReviewedById    String?
-  corperUpgradeRejectionReason String?              @db.Text
+  corperUpgradeRequestedAt        DateTime?
+  corperUpgradeReviewedAt         DateTime?
+  corperUpgradeReviewedById       String?
+  corperUpgradeRejectionReason    String?              @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -905,14 +925,31 @@ model Opportunity {
   description    String          @db.Text
   type           OpportunityType @default(OTHER)
   companyName    String
+  /// Free-text city / area string ("Lekki, Lagos"). Kept for backwards compat.
   location       String
+  /// Nigerian state for filtering — matches User.servingState values so we can
+  /// match opportunities to where a corper is serving. Nullable until backfilled.
+  state          String?
+  /// Local Government Area for finer-grained "near me" filtering.
+  lga            String?
   isRemote       Boolean         @default(false)
   salary         String?
+  /// How the opportunity pays — drives the pay-style filter on the income hub.
+  payModel       PayModel?
+  /// Skill tags for search / filtering. e.g. ["design", "writing", "POS"].
+  skills         String[]        @default([])
   deadline       DateTime?
   requirements   String?         @db.Text
   contactEmail   String?
   companyWebsite String?
   isFeatured     Boolean         @default(false)
+  /// Verified by an admin moderator. Verified opportunities rank higher and
+  /// show a green ✓ badge in clients.
+  isVerified     Boolean         @default(false)
+  verifiedAt     DateTime?
+  /// Admin user ID who verified — references the Admin table loosely (no FK
+  /// because admins live in a separate table; we just record the audit value).
+  verifiedById   String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -922,6 +959,8 @@ model Opportunity {
 
   @@index([authorId])
   @@index([isFeatured])
+  @@index([isVerified])
+  @@index([state])
   @@index([type])
 }
 

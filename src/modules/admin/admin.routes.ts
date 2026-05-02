@@ -37,6 +37,10 @@ router.get('/reports', adminController.listReports);
 router.get('/reports/:reportId', adminController.getReport);
 router.patch('/reports/:reportId', adminController.reviewReport);
 
+// ── Opportunities Moderation ─────────────────────────────────────────────────
+router.get('/opportunities/pending', adminController.listPendingOpportunities);
+router.patch('/opportunities/:opportunityId/verify', adminController.setOpportunityVerification);
+
 // ── Seller Applications ───────────────────────────────────────────────────────
 router.get('/seller-applications', adminController.listSellerApplications);
 router.get('/seller-applications/:appId', adminController.getSellerApplication);
